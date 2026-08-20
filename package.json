@@ -1,0 +1,19 @@
+{
+  "name": "sigep",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SIGEP - Sistema Integral de Gestión de Equipamiento y Personal",
+  "scripts": {
+    "dev": "pnpm --parallel --filter frontend --filter server run dev",
+    "dev:frontend": "pnpm --filter frontend run dev",
+    "dev:server": "pnpm --filter server run dev"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.6.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module"
+}
