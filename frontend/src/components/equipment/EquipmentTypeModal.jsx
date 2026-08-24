@@ -1,7 +1,4 @@
-import {
-  useState,
-} from "react";
-
+import { useState } from "react";
 import {
   Boxes,
   Package,
@@ -40,50 +37,59 @@ const EQUIPMENT_CATEGORIES = [
   },
 ];
 
-const getCategoryLabel = (
-  category,
-) => {
-  return (
-    EQUIPMENT_CATEGORIES.find(
-      (item) =>
-        item.value ===
-        category,
-    )?.label ||
-    "Otro"
-  );
-};
+const getCategoryLabel = (category) =>
+  EQUIPMENT_CATEGORIES.find(
+    (item) => item.value === category,
+  )?.label || "Otro";
 
-const getTrackingModeLabel = (
-  mode,
-) => {
-  if (
-    mode ===
-    "QUANTITY"
-  ) {
-    return "Por cantidad";
-  }
+const getTrackingModeLabel = (mode) =>
+  mode === "QUANTITY"
+    ? "Por cantidad"
+    : "Individual";
 
-  return "Individual";
-};
-
-const getAssignmentTypeLabel = (
-  type,
-) => {
-  if (
-    type ===
-    "PERMANENT"
-  ) {
+const getAssignmentTypeLabel = (type) => {
+  if (type === "PERMANENT") {
     return "Permanente";
   }
 
-  if (
-    type ===
-    "TEMPORARY"
-  ) {
+  if (type === "TEMPORARY") {
     return "Temporaria";
   }
 
   return "Sin modalidad";
+};
+
+const normalizeText = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const isPistolTypeName = (value) =>
+  normalizeText(value).includes("pistola");
+
+const isBallisticVestTypeName = (value) => {
+  const normalized = normalizeText(value);
+
+  return (
+    normalized.includes("chaleco") &&
+    normalized.includes("bal")
+  );
+};
+
+const getControlledAssignmentType = (
+  typeName,
+) => {
+  if (isPistolTypeName(typeName)) {
+    return "PERMANENT";
+  }
+
+  if (isBallisticVestTypeName(typeName)) {
+    return "TEMPORARY";
+  }
+
+  return null;
 };
 
 const EquipmentTypeModal = ({
@@ -93,70 +99,25 @@ const EquipmentTypeModal = ({
   onCreate,
   isSaving = false,
 }) => {
-  const [
-    name,
-    setName,
-  ] = useState("");
-
-  const [
-    category,
-    setCategory,
-  ] = useState(
-    "OTRO",
-  );
-
-  const [
-    trackingMode,
-    setTrackingMode,
-  ] = useState(
-    "INDIVIDUAL",
-  );
-
-  const [
-    defaultAssignmentType,
-    setDefaultAssignmentType,
-  ] = useState("");
-
-  const [
-    description,
-    setDescription,
-  ] = useState("");
-
-  const [
-    errors,
-    setErrors,
-  ] = useState({});
-
-  /*
-   * La condición de consumible
-   * se deriva de la categoría.
-   *
-   * Toda MUNICION es consumible.
-   */
-  const isConsumable =
-    category === "MUNICION";
+  const [name, setName] = useState("");
+  const [category, setCategory] =
+    useState("OTRO");
+  const [trackingMode, setTrackingMode] =
+    useState("INDIVIDUAL");
+  const [description, setDescription] =
+    useState("");
+  const [errors, setErrors] = useState({});
 
   if (!isOpen) {
     return null;
   }
 
+  // FORMULARIO
   const resetForm = () => {
     setName("");
-
-    setCategory(
-      "OTRO",
-    );
-
-    setTrackingMode(
-      "INDIVIDUAL",
-    );
-
-    setDefaultAssignmentType(
-      "",
-    );
-
+    setCategory("OTRO");
+    setTrackingMode("INDIVIDUAL");
     setDescription("");
-
     setErrors({});
   };
 
@@ -166,217 +127,119 @@ const EquipmentTypeModal = ({
     }
 
     resetForm();
-
     onClose();
   };
 
-  const handleCategoryChange =
-    (event) => {
-      const nextCategory =
-        event.target.value;
+  // CATEGORÍA
+  const handleCategoryChange = (event) => {
+    const nextCategory = event.target.value;
 
-      setCategory(
-        nextCategory,
-      );
+    setCategory(nextCategory);
 
-      setErrors(
-        (current) => ({
-          ...current,
-          category:
-            undefined,
-          trackingMode:
-            undefined,
-          defaultAssignmentType:
-            undefined,
-        }),
-      );
+    setErrors((current) => ({
+      ...current,
+      category: undefined,
+      trackingMode: undefined,
+    }));
 
-      /*
-       * Todo armamento se administra
-       * individualmente.
-       */
-      if (
-        nextCategory ===
-        "ARMAMENTO"
-      ) {
-        setTrackingMode(
-          "INDIVIDUAL",
-        );
+    if (nextCategory === "ARMAMENTO") {
+      setTrackingMode("INDIVIDUAL");
+      return;
+    }
 
-        return;
-      }
+    if (nextCategory === "MUNICION") {
+      setTrackingMode("QUANTITY");
+    }
+  };
 
-      /*
-       * Toda munición se administra
-       * por cantidad y no define una
-       * modalidad logística propia.
-       */
-      if (
-        nextCategory ===
-        "MUNICION"
-      ) {
-        setTrackingMode(
-          "QUANTITY",
-        );
+  // MODO DE CONTROL
+  const handleTrackingModeChange = (
+    nextMode,
+  ) => {
+    if (
+      category === "ARMAMENTO" &&
+      nextMode !== "INDIVIDUAL"
+    ) {
+      return;
+    }
 
-        setDefaultAssignmentType(
-          "",
-        );
-      }
-    };
+    if (
+      category === "MUNICION" &&
+      nextMode !== "QUANTITY"
+    ) {
+      return;
+    }
 
-  const handleTrackingModeChange =
-    (nextMode) => {
-      /*
-       * El armamento siempre debe
-       * administrarse individualmente.
-       */
-      if (
-        category ===
-          "ARMAMENTO" &&
-        nextMode ===
-          "QUANTITY"
-      ) {
-        return;
-      }
+    setTrackingMode(nextMode);
 
-      /*
-       * La munición siempre debe
-       * administrarse por cantidad.
-       */
-      if (
-        category ===
-          "MUNICION" &&
-        nextMode ===
-          "INDIVIDUAL"
-      ) {
-        return;
-      }
+    setErrors((current) => ({
+      ...current,
+      trackingMode: undefined,
+    }));
+  };
 
-      setTrackingMode(
-        nextMode,
-      );
+  const controlledAssignmentType =
+    getControlledAssignmentType(name);
 
-      setErrors(
-        (current) => ({
-          ...current,
-          trackingMode:
-            undefined,
-        }),
-      );
-    };
+  // GUARDAR
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-  const handleSubmit =
-    async (event) => {
-      event.preventDefault();
+    if (isSaving) {
+      return;
+    }
 
-      if (isSaving) {
-        return;
-      }
+    const localErrors = {};
 
-      const localErrors = {};
+    if (!name.trim()) {
+      localErrors.name =
+        "Ingresá el nombre del tipo de equipamiento";
+    }
 
-      if (
-        !name.trim()
-      ) {
-        localErrors.name =
-          "Ingresá el nombre del tipo de equipamiento";
-      }
+    if (
+      Object.keys(localErrors).length > 0
+    ) {
+      setErrors(localErrors);
+      return;
+    }
 
-      /*
-       * Todo ARMAMENTO debe indicar
-       * si es permanente o temporario.
-       */
-      if (
-        category ===
-          "ARMAMENTO" &&
-        !defaultAssignmentType
-      ) {
-        localErrors.defaultAssignmentType =
-          "Seleccioná si este armamento es permanente o temporario";
-      }
+    setErrors({});
 
-      if (
-        Object.keys(
-          localErrors,
-        ).length > 0
-      ) {
-        setErrors(
-          localErrors,
-        );
+    try {
+      await onCreate({
+        name: name.trim(),
+        category,
+        trackingMode,
+        defaultAssignmentType:
+          controlledAssignmentType,
+        description: description.trim(),
+      });
 
-        return;
-      }
+      resetForm();
+    } catch (error) {
+      const fieldErrors = {};
 
-      setErrors({});
-
-      try {
-        await onCreate({
-          name:
-            name.trim(),
-
-          category,
-
-          trackingMode,
-
-          /*
-           * Toda categoría MUNICION
-           * es consumible automáticamente.
-           */
-          isConsumable,
-
-          /*
-           * La munición acompaña a la
-           * asignación principal.
-           */
-          defaultAssignmentType:
-            category ===
-            "MUNICION"
-              ? null
-              : defaultAssignmentType ||
-                null,
-
-          description:
-            description.trim(),
-        });
-
-        resetForm();
-      } catch (error) {
-        const fieldErrors =
-          {};
-
-        error.details?.forEach(
-          (detail) => {
-            if (
-              detail.field
-            ) {
-              fieldErrors[
-                detail.field
-              ] =
-                detail.message;
-            }
-          },
-        );
-
-        if (
-          Object.keys(
-            fieldErrors,
-          ).length > 0
-        ) {
-          setErrors(
-            fieldErrors,
-          );
-
-          return;
+      error.details?.forEach((detail) => {
+        if (detail.field) {
+          fieldErrors[detail.field] =
+            detail.message;
         }
+      });
 
-        setErrors({
-          general:
-            error.message ||
-            "No se pudo crear el tipo de equipamiento",
-        });
+      if (
+        Object.keys(fieldErrors).length > 0
+      ) {
+        setErrors(fieldErrors);
+        return;
       }
-    };
+
+      setErrors({
+        general:
+          error.message ||
+          "No se pudo crear el tipo de equipamiento",
+      });
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-[2px]">
@@ -385,10 +248,7 @@ const EquipmentTypeModal = ({
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
           <div>
             <div className="flex items-center gap-2 text-sm font-medium text-[#163b65]">
-              <Tags
-                size={18}
-              />
-
+              <Tags size={18} />
               Catálogo
             </div>
 
@@ -397,29 +257,24 @@ const EquipmentTypeModal = ({
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Administrá los tipos disponibles para registrar equipamiento.
+              Administrá los tipos disponibles
+              para registrar equipamiento.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={
-              handleClose
-            }
-            disabled={
-              isSaving
-            }
+            onClick={handleClose}
+            disabled={isSaving}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
             aria-label="Cerrar"
           >
-            <X
-              size={20}
-            />
+            <X size={20} />
           </button>
         </div>
 
         <div className="overflow-y-auto">
-          {/* TIPOS EXISTENTES */}
+          {/* TIPOS REGISTRADOS */}
           <div className="px-6 py-5">
             <h3 className="text-sm font-semibold text-slate-800">
               Tipos registrados
@@ -427,93 +282,73 @@ const EquipmentTypeModal = ({
 
             <p className="mt-1 text-xs text-slate-500">
               {equipmentTypes.length}{" "}
-              {equipmentTypes.length ===
-              1
+              {equipmentTypes.length === 1
                 ? "tipo registrado"
                 : "tipos registrados"}
             </p>
 
             <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-              {equipmentTypes.length >
-              0 ? (
+              {equipmentTypes.length > 0 ? (
                 <div className="divide-y divide-slate-100">
-                  {equipmentTypes.map(
-                    (type) => (
-                      <div
-                        key={
-                          type.id
-                        }
-                        className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-800">
-                            {
-                              type.name
-                            }
-                          </p>
+                  {equipmentTypes.map((type) => (
+                    <div
+                      key={type.id}
+                      className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800">
+                          {type.name}
+                        </p>
 
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            {/* CATEGORÍA */}
-                            <span className="rounded-md bg-[#edf3f8] px-2 py-1 text-[11px] font-medium text-[#163b65]">
-                              {getCategoryLabel(
-                                type.category,
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="rounded-md bg-[#edf3f8] px-2 py-1 text-[11px] font-medium text-[#163b65]">
+                            {getCategoryLabel(
+                              type.category,
+                            )}
+                          </span>
+
+                          <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                            {getTrackingModeLabel(
+                              type.trackingMode,
+                            )}
+                          </span>
+
+                          {type.defaultAssignmentType && (
+                            <span
+                              className={`rounded-md px-2 py-1 text-[11px] font-medium ${
+                                type.defaultAssignmentType ===
+                                "PERMANENT"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {getAssignmentTypeLabel(
+                                type.defaultAssignmentType,
                               )}
                             </span>
-
-                            {/* CONTROL */}
-                            <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                              {getTrackingModeLabel(
-                                type.trackingMode,
-                              )}
-                            </span>
-
-                            {/* CONSUMIBLE */}
-                            {type.isConsumable && (
-                              <span className="rounded-md bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-700">
-                                Consumible
-                              </span>
-                            )}
-
-                            {/* MODALIDAD */}
-                            {type.defaultAssignmentType && (
-                              <span
-                                className={`rounded-md px-2 py-1 text-[11px] font-medium ${
-                                  type.defaultAssignmentType ===
-                                  "PERMANENT"
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : "bg-amber-50 text-amber-700"
-                                }`}
-                              >
-                                {getAssignmentTypeLabel(
-                                  type.defaultAssignmentType,
-                                )}
-                              </span>
-                            )}
-                          </div>
-
-                          {type.description && (
-                            <p className="mt-2 text-xs text-slate-500">
-                              {
-                                type.description
-                              }
-                            </p>
                           )}
                         </div>
 
-                        <span
-                          className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-medium sm:self-auto ${
-                            type.isActive
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {type.isActive
-                            ? "Activo"
-                            : "Inactivo"}
-                        </span>
+                        {type.description && (
+                          <p className="mt-2 text-xs text-slate-500">
+                            {type.description}
+                          </p>
+                        )}
                       </div>
-                    ),
-                  )}
+
+                      <span
+                        className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-medium sm:self-auto ${
+                          type.isActive
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {type.isActive
+                          ? "Activo"
+                          : "Inactivo"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="px-4 py-8 text-center">
@@ -523,7 +358,8 @@ const EquipmentTypeModal = ({
                   />
 
                   <p className="mt-2 text-sm text-slate-500">
-                    Todavía no hay tipos registrados.
+                    Todavía no hay tipos
+                    registrados.
                   </p>
                 </div>
               )}
@@ -532,9 +368,7 @@ const EquipmentTypeModal = ({
 
           {/* NUEVO TIPO */}
           <form
-            onSubmit={
-              handleSubmit
-            }
+            onSubmit={handleSubmit}
             className="border-t border-slate-100 bg-slate-50 px-6 py-5"
             noValidate
           >
@@ -551,9 +385,7 @@ const EquipmentTypeModal = ({
 
             {errors.general && (
               <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {
-                  errors.general
-                }
+                {errors.general}
               </div>
             )}
 
@@ -569,26 +401,16 @@ const EquipmentTypeModal = ({
               <input
                 id="equipmentTypeName"
                 type="text"
-                value={
-                  name
-                }
-                onChange={(
-                  event,
-                ) => {
-                  setName(
-                    event.target
-                      .value,
-                  );
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
 
-                  setErrors(
-                    (current) => ({
-                      ...current,
-                      name:
-                        undefined,
-                    }),
-                  );
+                  setErrors((current) => ({
+                    ...current,
+                    name: undefined,
+                  }));
                 }}
-                placeholder="Ej. Pistola, Escopeta, Chaleco..."
+                placeholder="Ej. Pistola, Escopeta, Chaleco Balístico..."
                 className={`${inputClasses} ${
                   errors.name
                     ? "border-red-300"
@@ -598,14 +420,13 @@ const EquipmentTypeModal = ({
 
               {errors.name && (
                 <p className="mt-1.5 text-xs font-medium text-red-600">
-                  {
-                    errors.name
-                  }
+                  {errors.name}
                 </p>
               )}
 
               <p className="mt-1.5 text-xs text-slate-400">
-                Ingresá el tipo específico. Por ejemplo: Pistola o Escopeta, no “Armamento”.
+                Ingresá el tipo específico, no
+                la categoría general.
               </p>
             </div>
 
@@ -620,9 +441,7 @@ const EquipmentTypeModal = ({
 
               <select
                 id="equipmentTypeCategory"
-                value={
-                  category
-                }
+                value={category}
                 onChange={
                   handleCategoryChange
                 }
@@ -635,16 +454,10 @@ const EquipmentTypeModal = ({
                 {EQUIPMENT_CATEGORIES.map(
                   (item) => (
                     <option
-                      key={
-                        item.value
-                      }
-                      value={
-                        item.value
-                      }
+                      key={item.value}
+                      value={item.value}
                     >
-                      {
-                        item.label
-                      }
+                      {item.label}
                     </option>
                   ),
                 )}
@@ -652,24 +465,28 @@ const EquipmentTypeModal = ({
 
               {errors.category && (
                 <p className="mt-1.5 text-xs font-medium text-red-600">
-                  {
-                    errors.category
-                  }
+                  {errors.category}
                 </p>
               )}
 
-              {category ===
-                "MUNICION" && (
-                <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/70 px-4 py-3">
-                  <p className="text-xs font-semibold text-violet-700">
-                    Munición · Consumible
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
-                    La munición se administra automáticamente por cantidad y se registra como consumible.
+              {category === "MUNICION" && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium text-slate-700">
+                    La munición se administra
+                    como stock por cantidad.
                   </p>
                 </div>
               )}
+
+              {category === "ARMAMENTO" &&
+                !isPistolTypeName(name) && (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-xs font-medium text-slate-700">
+                      Solo Pistola se asigna al personal.
+                      El resto del armamento queda como stock general.
+                    </p>
+                  </div>
+                )}
             </div>
 
             {/* MODO DE CONTROL */}
@@ -678,27 +495,11 @@ const EquipmentTypeModal = ({
                 Modo de control *
               </label>
 
-              {category ===
-                "ARMAMENTO" && (
-                <p className="mb-3 text-xs text-slate-500">
-                  El armamento se administra siempre de forma individual mediante número de serie.
-                </p>
-              )}
-
-              {category ===
-                "MUNICION" && (
-                <p className="mb-3 text-xs text-slate-500">
-                  La munición se administra siempre por cantidad. Esta opción se define automáticamente.
-                </p>
-              )}
-
               <div className="grid gap-3 sm:grid-cols-2">
-                {/* INDIVIDUAL */}
                 <button
                   type="button"
                   disabled={
-                    category ===
-                    "MUNICION"
+                    category === "MUNICION"
                   }
                   onClick={() =>
                     handleTrackingModeChange(
@@ -724,9 +525,7 @@ const EquipmentTypeModal = ({
                           : "bg-slate-100 text-slate-500"
                       }`}
                     >
-                      <Package
-                        size={18}
-                      />
+                      <Package size={18} />
                     </div>
 
                     <div>
@@ -735,22 +534,22 @@ const EquipmentTypeModal = ({
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Cada elemento se registra y controla individualmente.
+                        Cada unidad se controla
+                        individualmente.
                       </p>
 
                       <p className="mt-2 text-[11px] text-slate-400">
-                        Ej. Pistola, escopeta, chaleco, radio
+                        Ej. Pistola, escopeta,
+                        chaleco
                       </p>
                     </div>
                   </div>
                 </button>
 
-                {/* POR CANTIDAD */}
                 <button
                   type="button"
                   disabled={
-                    category ===
-                    "ARMAMENTO"
+                    category === "ARMAMENTO"
                   }
                   onClick={() =>
                     handleTrackingModeChange(
@@ -758,8 +557,7 @@ const EquipmentTypeModal = ({
                     )
                   }
                   className={`rounded-xl border p-4 text-left transition ${
-                    trackingMode ===
-                    "QUANTITY"
+                    trackingMode === "QUANTITY"
                       ? "border-[#163b65] bg-[#edf3f8] ring-2 ring-[#163b65]/10"
                       : category ===
                           "ARMAMENTO"
@@ -776,9 +574,7 @@ const EquipmentTypeModal = ({
                           : "bg-slate-100 text-slate-500"
                       }`}
                     >
-                      <Boxes
-                        size={18}
-                      />
+                      <Boxes size={18} />
                     </div>
 
                     <div>
@@ -787,11 +583,13 @@ const EquipmentTypeModal = ({
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Se controla un stock total y la cantidad disponible.
+                        Se controla stock total y
+                        cantidad disponible.
                       </p>
 
                       <p className="mt-2 text-[11px] text-slate-400">
-                        Ej. Cargadores, municiones
+                        Ej. Cargadores,
+                        municiones
                       </p>
                     </div>
                   </div>
@@ -800,123 +598,36 @@ const EquipmentTypeModal = ({
 
               {errors.trackingMode && (
                 <p className="mt-1.5 text-xs font-medium text-red-600">
-                  {
-                    errors.trackingMode
-                  }
+                  {errors.trackingMode}
                 </p>
               )}
             </div>
 
-            {/* MODALIDAD DE ASIGNACIÓN */}
+            {/* MODALIDAD */}
             <div className="mt-5">
-              <label
-                htmlFor="equipmentDefaultAssignmentType"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Modalidad de asignación{" "}
-                {category ===
-                "ARMAMENTO"
-                  ? "*"
-                  : ""}
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Modalidad de asignación
               </label>
 
-              <select
-                id="equipmentDefaultAssignmentType"
-                value={
-                  defaultAssignmentType
-                }
-                disabled={
-                  category ===
-                  "MUNICION"
-                }
-                onChange={(
-                  event,
-                ) => {
-                  if (
-                    category ===
-                    "MUNICION"
-                  ) {
-                    return;
-                  }
-
-                  setDefaultAssignmentType(
-                    event.target
-                      .value,
-                  );
-
-                  setErrors(
-                    (current) => ({
-                      ...current,
-                      defaultAssignmentType:
-                        undefined,
-                    }),
-                  );
-                }}
-                className={`${inputClasses} ${
-                  errors.defaultAssignmentType
-                    ? "border-red-300"
-                    : ""
-                } ${
-                  category ===
-                  "MUNICION"
-                    ? "cursor-not-allowed bg-slate-100 text-slate-500"
-                    : ""
-                }`}
-              >
-                <option value="">
-                  Sin modalidad predeterminada
-                </option>
-
-                <option value="PERMANENT">
-                  Permanente
-                </option>
-
-                <option value="TEMPORARY">
-                  Temporaria
-                </option>
-              </select>
-
-              {errors.defaultAssignmentType && (
-                <p className="mt-1.5 text-xs font-medium text-red-600">
-                  {
-                    errors.defaultAssignmentType
-                  }
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-sm font-semibold text-slate-800">
+                  {controlledAssignmentType
+                    ? getAssignmentTypeLabel(
+                        controlledAssignmentType,
+                      )
+                    : "Sin modalidad"}
                 </p>
-              )}
 
-              {category ===
-                "ARMAMENTO" && (
-                <div className="mt-3 rounded-xl border border-[#163b65]/10 bg-[#edf3f8] px-4 py-3">
-                  <p className="text-xs font-medium text-[#163b65]">
-                    Para armamento definí cómo se asignará normalmente:
-                  </p>
-
-                  <div className="mt-2 space-y-1 text-xs text-slate-600">
-                    <p>
-                      <strong>Pistola:</strong>{" "}
-                      Permanente → permanece en poder del oficial.
-                    </p>
-
-                    <p>
-                      <strong>Escopeta:</strong>{" "}
-                      Temporaria → se resguarda en Sala de Armas.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {category ===
-                "MUNICION" && (
-                <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/70 px-4 py-3">
-                  <p className="text-xs font-medium text-violet-700">
-                    La munición no define una modalidad propia.
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
-                    Acompaña la asignación principal. Por ejemplo, la munición 9 mm acompaña una provisión permanente de pistola y la munición calibre 12 puede acompañar una asignación temporaria de escopeta.
-                  </p>
-                </div>
-              )}
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  {controlledAssignmentType ===
+                  "PERMANENT"
+                    ? "Pistola se asigna de forma Permanente."
+                    : controlledAssignmentType ===
+                        "TEMPORARY"
+                      ? "Chaleco Balístico se asigna de forma Temporaria para identificar qué chaleco corresponde a cada oficial."
+                      : "Este tipo se administra como stock general y no se asigna directamente al personal."}
+                </p>
+              </div>
             </div>
 
             {/* DESCRIPCIÓN */}
@@ -931,15 +642,10 @@ const EquipmentTypeModal = ({
               <textarea
                 id="equipmentTypeDescription"
                 rows={3}
-                value={
-                  description
-                }
-                onChange={(
-                  event,
-                ) =>
+                value={description}
+                onChange={(event) =>
                   setDescription(
-                    event.target
-                      .value,
+                    event.target.value,
                   )
                 }
                 placeholder="Descripción opcional..."
@@ -952,9 +658,7 @@ const EquipmentTypeModal = ({
 
               {errors.description && (
                 <p className="mt-1.5 text-xs font-medium text-red-600">
-                  {
-                    errors.description
-                  }
+                  {errors.description}
                 </p>
               )}
             </div>
@@ -962,14 +666,10 @@ const EquipmentTypeModal = ({
             <div className="mt-5 flex justify-end">
               <button
                 type="submit"
-                disabled={
-                  isSaving
-                }
+                disabled={isSaving}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#163b65] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#123252] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Plus
-                  size={17}
-                />
+                <Plus size={17} />
 
                 {isSaving
                   ? "Guardando..."

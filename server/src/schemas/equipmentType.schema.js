@@ -37,64 +37,25 @@ export const equipmentTypeSchema = z
       ),
 
     category: z
-      .enum(
-        EQUIPMENT_CATEGORIES,
-        {
-          message:
-            "La categoría seleccionada no es válida",
-        },
-      )
+      .enum(EQUIPMENT_CATEGORIES, {
+        message:
+          "La categoría seleccionada no es válida",
+      })
       .default("OTRO"),
 
     trackingMode: z
-      .enum(
-        EQUIPMENT_TRACKING_MODES,
-        {
-          message:
-            "El modo de control seleccionado no es válido",
-        },
-      )
-      .default("INDIVIDUAL"),
-
-    /*
-     * CONSUMIBLE
-     *
-     * true:
-     * elementos que pueden utilizarse
-     * y no necesariamente regresar
-     * físicamente al stock.
-     *
-     * Ejemplos:
-     * - Munición 9 mm
-     * - Munición calibre 12 convencional
-     * - Munición calibre 12 posta de goma
-     *
-     * false:
-     * elementos reutilizables.
-     *
-     * Ejemplos:
-     * - Pistola
-     * - Escopeta
-     * - HT
-     * - Chaleco
-     * - Cargador
-     */
-    isConsumable: z
-      .boolean({
+      .enum(EQUIPMENT_TRACKING_MODES, {
         message:
-          "El indicador de consumible no es válido",
+          "El modo de control seleccionado no es válido",
       })
-      .default(false),
+      .default("INDIVIDUAL"),
 
     defaultAssignmentType: z
       .union([
-        z.enum(
-          DEFAULT_ASSIGNMENT_TYPES,
-          {
-            message:
-              "La modalidad de asignación seleccionada no es válida",
-          },
-        ),
+        z.enum(DEFAULT_ASSIGNMENT_TYPES, {
+          message:
+            "La modalidad de asignación seleccionada no es válida",
+        }),
         z.null(),
       ])
       .optional(),
@@ -110,12 +71,7 @@ export const equipmentTypeSchema = z
       .nullable(),
   })
   .superRefine((data, ctx) => {
-    /*
-     * ARMAMENTO
-     *
-     * Todo armamento se identifica
-     * individualmente.
-     */
+    // ARMAMENTO
     if (
       data.category === "ARMAMENTO" &&
       data.trackingMode !== "INDIVIDUAL"
@@ -128,49 +84,7 @@ export const equipmentTypeSchema = z
       });
     }
 
-    /*
-     * Todo ARMAMENTO debe indicar
-     * su modalidad logística.
-     *
-     * Pistola:
-     * PERMANENT
-     *
-     * Escopeta:
-     * TEMPORARY
-     */
-    if (
-      data.category === "ARMAMENTO" &&
-      !data.defaultAssignmentType
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["defaultAssignmentType"],
-        message:
-          "El armamento debe indicar si su asignación es permanente o temporaria",
-      });
-    }
-
-    /*
-     * El armamento no es consumible.
-     */
-    if (
-      data.category === "ARMAMENTO" &&
-      data.isConsumable
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["isConsumable"],
-        message:
-          "El armamento no puede configurarse como consumible",
-      });
-    }
-
-    /*
-     * MUNICIÓN
-     *
-     * Toda munición se administra
-     * mediante cantidades de stock.
-     */
+    // MUNICIÓN
     if (
       data.category === "MUNICION" &&
       data.trackingMode !== "QUANTITY"
@@ -180,44 +94,6 @@ export const equipmentTypeSchema = z
         path: ["trackingMode"],
         message:
           "La munición debe utilizar control por cantidad",
-      });
-    }
-
-    /*
-     * Toda munición es consumible.
-     *
-     * Esto permite posteriormente
-     * diferenciar:
-     *
-     * - cantidad devuelta sin uso
-     * - cantidad utilizada/consumida
-     */
-    if (
-      data.category === "MUNICION" &&
-      !data.isConsumable
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["isConsumable"],
-        message:
-          "La munición debe configurarse como consumible",
-      });
-    }
-
-    /*
-     * Cualquier elemento marcado
-     * como consumible debe manejarse
-     * por cantidad.
-     */
-    if (
-      data.isConsumable &&
-      data.trackingMode !== "QUANTITY"
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["trackingMode"],
-        message:
-          "Los elementos consumibles deben administrarse por cantidad",
       });
     }
   });

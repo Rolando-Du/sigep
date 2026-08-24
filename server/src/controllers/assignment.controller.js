@@ -1,9 +1,7 @@
 import prisma from "../lib/prisma.js";
+import { assignmentSchema } from "../schemas/assignment.schema.js";
 
-import {
-  assignmentSchema,
-} from "../schemas/assignment.schema.js";
-
+// VALIDACIÓN
 const formatValidationErrors = (issues) =>
   issues.map((issue) => ({
     field: issue.path.join("."),
@@ -16,10 +14,8 @@ const createAssignmentError = (
   details = [],
 ) => {
   const error = new Error(message);
-
   error.status = status;
   error.details = details;
-
   return error;
 };
 
@@ -46,6 +42,7 @@ const sendControllerError = (
   });
 };
 
+// INCLUDES
 const getPersonnelSelect = () => ({
   id: true,
   firstName: true,
@@ -58,7 +55,6 @@ const getAssignmentInclude = () => ({
   personnel: {
     select: getPersonnelSelect(),
   },
-
   details: {
     include: {
       equipment: {
@@ -70,148 +66,98 @@ const getAssignmentInclude = () => ({
   },
 });
 
-/*
- * =====================================================
- * HELPERS DE EQUIPAMIENTO
- * =====================================================
- */
-
+// HELPERS
 const normalizeText = (value) =>
   String(value || "")
     .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      "",
-    )
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
 
-/*
- * Determina si el equipo pertenece
- * a la categoría ARMAMENTO.
- */
-const isArmamentEquipment = (
-  equipment,
-) =>
-  equipment?.type?.category ===
-  "ARMAMENTO";
+const isArmamentEquipment = (equipment) =>
+  equipment?.type?.category === "ARMAMENTO";
 
-/*
- * PISTOLA
- *
- * La categoría identifica que es
- * armamento y el nombre específico
- * permite aplicar la dotación:
- *
- * 1 pistola
- * 3 cargadores
- * 50 municiones 9 mm
- */
-const isPistolEquipment = (
-  equipment,
-) => {
-  if (
-    !isArmamentEquipment(
-      equipment,
-    )
-  ) {
+const isPistolEquipment = (equipment) => {
+  if (!isArmamentEquipment(equipment)) {
     return false;
   }
 
-  const typeName =
-    normalizeText(
-      equipment?.type?.name,
-    );
-
-  return typeName.includes(
-    "pistola",
-  );
+  return normalizeText(
+    equipment?.type?.name,
+  ).includes("pistola");
 };
 
-/*
- * CARGADOR
- */
-const isMagazineEquipment = (
+const isBallisticVestEquipment = (
   equipment,
 ) => {
-  const typeName =
-    normalizeText(
-      equipment?.type?.name,
-    );
+  const typeName = normalizeText(
+    equipment?.type?.name,
+  );
 
   return (
     equipment?.type?.category ===
-      "ACCESORIO" &&
-    typeName.includes(
-      "cargador",
-    )
+      "PROTECCION" &&
+    typeName.includes("chaleco")
   );
 };
 
-/*
- * MUNICIÓN
- */
-const isAmmunitionEquipment = (
-  equipment,
-) => {
-  const typeName =
-    normalizeText(
-      equipment?.type?.name,
-    );
+const isShotgunEquipment = (equipment) => {
+  if (!isArmamentEquipment(equipment)) {
+    return false;
+  }
+
+  return normalizeText(
+    equipment?.type?.name,
+  ).includes("escopeta");
+};
+
+const isMagazineEquipment = (equipment) => {
+  const typeName = normalizeText(
+    equipment?.type?.name,
+  );
 
   return (
-    equipment?.type?.category ===
-      "MUNICION" ||
-    typeName.includes(
-      "municion",
-    ) ||
-    typeName.includes(
-      "cartucho",
-    )
+    equipment?.type?.category === "ACCESORIO" &&
+    typeName.includes("cargador")
   );
 };
 
-/*
- * MUNICIÓN 9 MM
- */
+const isAmmunitionEquipment = (equipment) => {
+  const typeName = normalizeText(
+    equipment?.type?.name,
+  );
+
+  return (
+    equipment?.type?.category === "MUNICION" ||
+    typeName.includes("municion") ||
+    typeName.includes("cartucho")
+  );
+};
+
 const isNineMillimeterAmmunition = (
   equipment,
 ) => {
-  if (
-    !isAmmunitionEquipment(
-      equipment,
-    )
-  ) {
+  if (!isAmmunitionEquipment(equipment)) {
     return false;
   }
 
-  const searchableText =
-    normalizeText(
-      [
-        equipment?.type?.name,
-        equipment?.type
-          ?.description,
-        equipment?.brand,
-        equipment?.model,
-        equipment?.observations,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    );
+  const searchableText = normalizeText(
+    [
+      equipment?.type?.name,
+      equipment?.type?.description,
+      equipment?.brand,
+      equipment?.model,
+      equipment?.observations,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
 
   return (
-    searchableText.includes(
-      "9 mm",
-    ) ||
-    searchableText.includes(
-      "9mm",
-    ) ||
-    searchableText.includes(
-      "9x19",
-    ) ||
-    searchableText.includes(
-      "9 x 19",
-    )
+    searchableText.includes("9 mm") ||
+    searchableText.includes("9mm") ||
+    searchableText.includes("9x19") ||
+    searchableText.includes("9 x 19")
   );
 };
 
@@ -221,23 +167,9 @@ const getEquipmentByDetail = (
 ) =>
   equipmentList.find(
     (equipment) =>
-      equipment.id ===
-      detail.equipmentId,
+      equipment.id === detail.equipmentId,
   );
 
-/*
- * Obtiene todas las modalidades
- * predeterminadas presentes en los
- * equipos seleccionados.
- *
- * Ejemplo:
- *
- * Pistola
- * -> PERMANENT
- *
- * Escopeta
- * -> TEMPORARY
- */
 const getRequiredAssignmentTypes = (
   equipmentList,
 ) => [
@@ -252,12 +184,7 @@ const getRequiredAssignmentTypes = (
   ),
 ];
 
-/*
- * =====================================================
- * OBTENER TODAS LAS ASIGNACIONES
- * =====================================================
- */
-
+// LISTAR ASIGNACIONES
 export const getAssignments = async (
   req,
   res,
@@ -265,9 +192,7 @@ export const getAssignments = async (
   try {
     const assignments =
       await prisma.assignment.findMany({
-        include:
-          getAssignmentInclude(),
-
+        include: getAssignmentInclude(),
         orderBy: {
           assignedAt: "desc",
         },
@@ -293,12 +218,7 @@ export const getAssignments = async (
   }
 };
 
-/*
- * =====================================================
- * OBTENER ASIGNACIONES DE UNA PERSONA
- * =====================================================
- */
-
+// LISTAR ASIGNACIONES DEL PERSONAL
 export const getPersonnelAssignments =
   async (req, res) => {
     try {
@@ -307,136 +227,90 @@ export const getPersonnelAssignments =
       );
 
       if (
-        !Number.isInteger(
-          personnelId,
-        ) ||
+        !Number.isInteger(personnelId) ||
         personnelId <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error: {
-              message:
-                "ID de personal inválido",
-            },
-          });
+        return res.status(400).json({
+          success: false,
+          error: {
+            message:
+              "ID de personal inválido",
+          },
+        });
       }
 
       const personnel =
-        await prisma.personnel.findUnique(
-          {
-            where: {
-              id: personnelId,
-            },
-
-            select: {
-              id: true,
-            },
+        await prisma.personnel.findUnique({
+          where: {
+            id: personnelId,
           },
-        );
+          select: {
+            id: true,
+          },
+        });
 
       if (!personnel) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error: {
-              message:
-                "Personal no encontrado",
-            },
-          });
+        return res.status(404).json({
+          success: false,
+          error: {
+            message:
+              "Personal no encontrado",
+          },
+        });
       }
 
       const assignments =
-        await prisma.assignment.findMany(
-          {
-            where: {
-              personnelId,
-            },
-
-            include:
-              getAssignmentInclude(),
-
-            orderBy: {
-              assignedAt:
-                "desc",
-            },
+        await prisma.assignment.findMany({
+          where: {
+            personnelId,
           },
-        );
-
-      return res
-        .status(200)
-        .json({
-          success: true,
-          data: assignments,
+          include: getAssignmentInclude(),
+          orderBy: {
+            assignedAt: "desc",
+          },
         });
+
+      return res.status(200).json({
+        success: true,
+        data: assignments,
+      });
     } catch (error) {
       console.error(
         "Error al obtener asignaciones del personal:",
         error,
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: {
-            message:
-              "No se pudieron obtener las asignaciones",
-          },
-        });
+      return res.status(500).json({
+        success: false,
+        error: {
+          message:
+            "No se pudieron obtener las asignaciones",
+        },
+      });
     }
   };
 
-/*
- * =====================================================
- * CREAR ASIGNACIÓN
- * =====================================================
- *
- * PERMANENT:
- *
- * El equipamiento queda asignado
- * y permanece en poder del oficial.
- *
- * TEMPORARY:
- *
- * El equipamiento queda asignado
- * al oficial pero permanece
- * habitualmente resguardado en
- * Sala de Armas.
- *
- * No se registran retiros ni
- * entregas diarias.
- */
-
+// CREAR ASIGNACIÓN
 export const createAssignment = async (
   req,
   res,
 ) => {
   try {
     const validation =
-      assignmentSchema.safeParse(
-        req.body,
-      );
+      assignmentSchema.safeParse(req.body);
 
     if (!validation.success) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-
-          error: {
-            message:
-              "Los datos ingresados no son válidos",
-
-            details:
-              formatValidationErrors(
-                validation.error
-                  .issues,
-              ),
-          },
-        });
+      return res.status(400).json({
+        success: false,
+        error: {
+          message:
+            "Los datos ingresados no son válidos",
+          details:
+            formatValidationErrors(
+              validation.error.issues,
+            ),
+        },
+      });
     }
 
     const {
@@ -446,70 +320,47 @@ export const createAssignment = async (
       observations,
     } = validation.data;
 
-    /*
-     * Evitamos que un mismo registro
-     * de equipamiento aparezca más de
-     * una vez dentro de la asignación.
-     */
-    const equipmentIds =
-      details.map(
-        (detail) =>
-          detail.equipmentId,
-      );
+    const equipmentIds = details.map(
+      (detail) => detail.equipmentId,
+    );
 
     const uniqueEquipmentIds = [
-      ...new Set(
-        equipmentIds,
-      ),
+      ...new Set(equipmentIds),
     ];
 
     if (
       uniqueEquipmentIds.length !==
       equipmentIds.length
     ) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-
-          error: {
-            message:
-              "Hay equipamiento repetido en la asignación",
-
-            details: [
-              {
-                field:
-                  "details",
-
-                message:
-                  "Un mismo equipamiento no puede agregarse más de una vez a la misma asignación",
-              },
-            ],
-          },
-        });
+      return res.status(400).json({
+        success: false,
+        error: {
+          message:
+            "Hay equipamiento repetido en la asignación",
+          details: [
+            {
+              field: "details",
+              message:
+                "Un mismo equipamiento no puede agregarse más de una vez a la misma asignación",
+            },
+          ],
+        },
+      });
     }
 
     const assignment =
       await prisma.$transaction(
         async (tx) => {
-          /*
-           * ==========================================
-           * 1. VERIFICAMOS PERSONAL
-           * ==========================================
-           */
-
+          // PERSONAL
           const personnel =
-            await tx.personnel.findUnique(
-              {
-                where: {
-                  id: personnelId,
-                },
-
-                select: {
-                  id: true,
-                },
+            await tx.personnel.findUnique({
+              where: {
+                id: personnelId,
               },
-            );
+              select: {
+                id: true,
+              },
+            });
 
           if (!personnel) {
             throw createAssignmentError(
@@ -517,9 +368,7 @@ export const createAssignment = async (
               404,
               [
                 {
-                  field:
-                    "personnelId",
-
+                  field: "personnelId",
                   message:
                     "La persona seleccionada no existe",
                 },
@@ -527,81 +376,122 @@ export const createAssignment = async (
             );
           }
 
-          /*
-           * ==========================================
-           * 2. OBTENEMOS TODO EL EQUIPAMIENTO
-           * ==========================================
-           */
-
+          // EQUIPAMIENTO
           const equipmentList =
-            await tx.equipment.findMany(
-              {
-                where: {
-                  id: {
-                    in: uniqueEquipmentIds,
-                  },
-                },
-
-                include: {
-                  type: true,
+            await tx.equipment.findMany({
+              where: {
+                id: {
+                  in: uniqueEquipmentIds,
                 },
               },
-            );
+              include: {
+                type: true,
+              },
+            });
 
           if (
             equipmentList.length !==
             uniqueEquipmentIds.length
           ) {
-            const foundIds =
-              new Set(
-                equipmentList.map(
-                  (equipment) =>
-                    equipment.id,
-                ),
-              );
+            const foundIds = new Set(
+              equipmentList.map(
+                (equipment) => equipment.id,
+              ),
+            );
 
             const missingIds =
               uniqueEquipmentIds.filter(
-                (id) =>
-                  !foundIds.has(
-                    id,
-                  ),
+                (id) => !foundIds.has(id),
               );
 
             throw createAssignmentError(
               "Uno o más equipos no existen",
               404,
-              missingIds.map(
-                (id) => ({
-                  field:
-                    "details",
-
-                  message:
-                    `No existe el equipamiento con ID ${id}`,
-                }),
-              ),
+              missingIds.map((id) => ({
+                field: "details",
+                message:
+                  `No existe el equipamiento con ID ${id}`,
+              })),
             );
           }
 
-          /*
-           * ==========================================
-           * 3. VALIDAMOS MODALIDAD LOGÍSTICA
-           * ==========================================
-           *
-           * EquipmentType determina la modalidad
-           * cuando existe defaultAssignmentType.
-           *
-           * Pistola:
-           * PERMANENT
-           *
-           * Escopeta:
-           * TEMPORARY
-           */
+          // EQUIPAMIENTO ASIGNABLE
+          const pistols =
+            equipmentList.filter(
+              isPistolEquipment,
+            );
 
-          /*
-           * Todo ARMAMENTO debe tener
-           * modalidad configurada.
-           */
+          const ballisticVests =
+            equipmentList.filter(
+              isBallisticVestEquipment,
+            );
+
+          if (pistols.length === 0) {
+            const nonAssignableEquipment =
+              equipmentList.find(
+                (equipment) =>
+                  !isBallisticVestEquipment(
+                    equipment,
+                  ),
+              );
+
+            if (nonAssignableEquipment) {
+              throw createAssignmentError(
+                "El equipamiento seleccionado se administra como stock general",
+                400,
+                [
+                  {
+                    field: "details",
+                    message:
+                      `${nonAssignableEquipment.type.name} no puede asignarse directamente al personal. Solo Pistola y Chaleco Balístico son asignables.`,
+                  },
+                ],
+              );
+            }
+
+            if (
+              ballisticVests.length > 0 &&
+              type !== "TEMPORARY"
+            ) {
+              throw createAssignmentError(
+                "El chaleco balístico debe asignarse como Temporario",
+                400,
+                [
+                  {
+                    field: "type",
+                    message:
+                      "La modalidad logística del Chaleco Balístico es Temporaria",
+                  },
+                ],
+              );
+            }
+
+            const invalidVestConfiguration =
+              ballisticVests.find(
+                (equipment) =>
+                  equipment.type
+                    ?.defaultAssignmentType !==
+                  "TEMPORARY",
+              );
+
+            if (
+              invalidVestConfiguration
+            ) {
+              throw createAssignmentError(
+                "El tipo Chaleco Balístico está configurado incorrectamente",
+                409,
+                [
+                  {
+                    field: "details",
+                    message:
+                      `${invalidVestConfiguration.type.name} debe tener modalidad Temporaria`,
+                  },
+                ],
+              );
+            }
+          }
+
+          // MODALIDAD
           const armamentWithoutDefault =
             equipmentList.find(
               (equipment) =>
@@ -612,17 +502,13 @@ export const createAssignment = async (
                   .defaultAssignmentType,
             );
 
-          if (
-            armamentWithoutDefault
-          ) {
+          if (armamentWithoutDefault) {
             throw createAssignmentError(
               "El tipo de armamento no tiene una modalidad configurada",
               409,
               [
                 {
-                  field:
-                    "details",
-
+                  field: "details",
                   message:
                     `${armamentWithoutDefault.type.name} debe definir una modalidad de asignación antes de poder ser asignado`,
                 },
@@ -630,36 +516,22 @@ export const createAssignment = async (
             );
           }
 
-          /*
-           * Obtenemos las modalidades
-           * obligatorias presentes.
-           */
           const requiredAssignmentTypes =
             getRequiredAssignmentTypes(
               equipmentList,
             );
 
-          /*
-           * No pueden mezclarse:
-           *
-           * PERMANENT + TEMPORARY
-           *
-           * dentro de una misma asignación.
-           */
           if (
-            requiredAssignmentTypes.length >
-            1
+            requiredAssignmentTypes.length > 1
           ) {
             throw createAssignmentError(
               "Los equipos seleccionados requieren modalidades diferentes",
               400,
               [
                 {
-                  field:
-                    "type",
-
+                  field: "type",
                   message:
-                    "No se pueden combinar en una misma asignación equipos configurados como Permanentes y Temporarios",
+                    "No se pueden combinar equipos configurados como Permanentes y Temporarios en una misma asignación",
                 },
               ],
             );
@@ -669,15 +541,9 @@ export const createAssignment = async (
             requiredAssignmentTypes[0] ||
             null;
 
-          /*
-           * La modalidad enviada debe
-           * coincidir con la definida
-           * por el catálogo.
-           */
           if (
             requiredAssignmentType &&
-            type !==
-              requiredAssignmentType
+            type !== requiredAssignmentType
           ) {
             const conflictingEquipment =
               equipmentList.find(
@@ -692,13 +558,11 @@ export const createAssignment = async (
               400,
               [
                 {
-                  field:
-                    "type",
-
+                  field: "type",
                   message:
                     `${
-                      conflictingEquipment
-                        ?.type?.name ||
+                      conflictingEquipment?.type
+                        ?.name ||
                       "El equipamiento"
                     } está configurado como ${
                       requiredAssignmentType ===
@@ -711,68 +575,121 @@ export const createAssignment = async (
             );
           }
 
-          /*
-           * ==========================================
-           * 4. PROVISIÓN PERMANENTE DE PISTOLA
-           * ==========================================
-           *
-           * 1 Pistola
-           * 3 Cargadores
-           * 50 Municiones 9 mm
-           *
-           * IMPORTANTE:
-           *
-           * Esta regla se aplica únicamente
-           * a Pistola.
-           *
-           * Una Escopeta NO recibe esta
-           * dotación automática.
-           */
-
-          const pistols =
-            equipmentList.filter(
-              isPistolEquipment,
+          // EQUIPAMIENTO SOLO DE STOCK
+          const shotgun =
+            equipmentList.find(
+              isShotgunEquipment,
             );
 
-          if (
-            pistols.length > 1
-          ) {
+          if (shotgun) {
             throw createAssignmentError(
-              "Solo puede incluirse una pistola por provisión",
+              "La escopeta se administra como stock general",
               400,
               [
                 {
-                  field:
-                    "details",
-
+                  field: "details",
                   message:
-                    "La provisión permanente debe registrarse con una sola pistola",
+                    "La escopeta no forma parte de la dotación logística individual del personal",
                 },
               ],
             );
           }
 
-          if (
-            pistols.length === 1
-          ) {
-            const pistol =
-              pistols[0];
+          const nonNineMillimeterAmmunition =
+            equipmentList.find(
+              (equipment) =>
+                isAmmunitionEquipment(
+                  equipment,
+                ) &&
+                !isNineMillimeterAmmunition(
+                  equipment,
+                ),
+            );
 
-            /*
-             * Pistola siempre PERMANENT.
-             */
+          if (
+            nonNineMillimeterAmmunition
+          ) {
+            throw createAssignmentError(
+              "La munición seleccionada se administra como stock general",
+              400,
+              [
+                {
+                  field: "details",
+                  message:
+                    `${nonNineMillimeterAmmunition.type.name} no se asigna directamente al personal`,
+                },
+              ],
+            );
+          }
+
+          // PROVISIÓN DE PISTOLA
+          if (pistols.length > 1) {
+            throw createAssignmentError(
+              "Solo puede incluirse una pistola por provisión",
+              400,
+              [
+                {
+                  field: "details",
+                  message:
+                    "La provisión debe registrarse con una sola pistola",
+                },
+              ],
+            );
+          }
+
+          const magazines =
+            equipmentList.filter(
+              isMagazineEquipment,
+            );
+
+          const nineMillimeterAmmunition =
+            equipmentList.filter(
+              isNineMillimeterAmmunition,
+            );
+
+          if (pistols.length === 0) {
+            if (magazines.length > 0) {
+              throw createAssignmentError(
+                "Los cargadores solo pueden asignarse con una pistola",
+                400,
+                [
+                  {
+                    field: "details",
+                    message:
+                      "Los cargadores forman parte de la dotación de la pistola y no se asignan por separado",
+                  },
+                ],
+              );
+            }
+
             if (
-              type !==
-              "PERMANENT"
+              nineMillimeterAmmunition.length >
+              0
             ) {
+              throw createAssignmentError(
+                "La munición 9 mm solo puede asignarse con una pistola",
+                400,
+                [
+                  {
+                    field: "details",
+                    message:
+                      "El stock excedente de munición 9 mm no se asigna directamente al personal",
+                  },
+                ],
+              );
+            }
+          }
+
+          if (pistols.length === 1) {
+            const pistol = pistols[0];
+
+            if (type !== "PERMANENT") {
               throw createAssignmentError(
                 "La pistola debe asignarse como Permanente",
                 400,
                 [
                   {
-                    field:
-                      "type",
-
+                    field: "type",
                     message:
                       "La modalidad logística de Pistola es Permanente",
                   },
@@ -787,22 +704,16 @@ export const createAssignment = async (
                   pistol.id,
               );
 
-            /*
-             * Exactamente una pistola.
-             */
             if (
               !pistolDetail ||
-              pistolDetail.quantity !==
-                1
+              pistolDetail.quantity !== 1
             ) {
               throw createAssignmentError(
                 "Cantidad inválida para la pistola",
                 400,
                 [
                   {
-                    field:
-                      "details",
-
+                    field: "details",
                     message:
                       "La provisión debe incluir exactamente una pistola",
                   },
@@ -812,109 +723,68 @@ export const createAssignment = async (
 
             let magazineQuantity = 0;
             let ammunitionQuantity = 0;
+            const unrelatedEquipment = [];
 
-            const unrelatedEquipment =
-              [];
-
-            /*
-             * Clasificamos el resto
-             * de los elementos de la
-             * asignación.
-             */
-            details.forEach(
-              (detail) => {
-                const equipment =
-                  getEquipmentByDetail(
-                    equipmentList,
-                    detail,
-                  );
-
-                if (!equipment) {
-                  return;
-                }
-
-                /*
-                 * Pistola.
-                 */
-                if (
-                  isPistolEquipment(
-                    equipment,
-                  )
-                ) {
-                  return;
-                }
-
-                /*
-                 * Cargadores.
-                 */
-                if (
-                  isMagazineEquipment(
-                    equipment,
-                  )
-                ) {
-                  magazineQuantity +=
-                    detail.quantity;
-
-                  return;
-                }
-
-                /*
-                 * Munición 9 mm.
-                 */
-                if (
-                  isNineMillimeterAmmunition(
-                    equipment,
-                  )
-                ) {
-                  ammunitionQuantity +=
-                    detail.quantity;
-
-                  return;
-                }
-
-                /*
-                 * Todo lo demás queda
-                 * fuera de la provisión.
-                 */
-                unrelatedEquipment.push(
-                  equipment,
+            details.forEach((detail) => {
+              const equipment =
+                getEquipmentByDetail(
+                  equipmentList,
+                  detail,
                 );
-              },
-            );
 
-            /*
-             * Una provisión de pistola
-             * se registra por separado.
-             *
-             * No se mezcla con:
-             *
-             * - Chaleco
-             * - Radio
-             * - Escopeta
-             * - Otros equipos
-             */
+              if (!equipment) {
+                return;
+              }
+
+              if (
+                isPistolEquipment(
+                  equipment,
+                )
+              ) {
+                return;
+              }
+
+              if (
+                isMagazineEquipment(
+                  equipment,
+                )
+              ) {
+                magazineQuantity +=
+                  detail.quantity;
+                return;
+              }
+
+              if (
+                isNineMillimeterAmmunition(
+                  equipment,
+                )
+              ) {
+                ammunitionQuantity +=
+                  detail.quantity;
+                return;
+              }
+
+              unrelatedEquipment.push(
+                equipment,
+              );
+            });
+
             if (
-              unrelatedEquipment.length >
-              0
+              unrelatedEquipment.length > 0
             ) {
               throw createAssignmentError(
                 "La provisión de pistola debe registrarse por separado",
                 400,
                 [
                   {
-                    field:
-                      "details",
-
+                    field: "details",
                     message:
-                      "No se pueden incluir chalecos, radios, escopetas u otros equipos dentro de la provisión permanente de pistola",
+                      "La provisión de pistola solo puede incluir 1 pistola, 3 cargadores y 50 municiones 9 mm",
                   },
                 ],
               );
             }
 
-            /*
-             * Exactamente 3 cargadores.
-             */
             if (
               magazineQuantity !== 3
             ) {
@@ -923,9 +793,7 @@ export const createAssignment = async (
                 400,
                 [
                   {
-                    field:
-                      "details",
-
+                    field: "details",
                     message:
                       `Cantidad de cargadores recibida: ${magazineQuantity}. Cantidad requerida: 3`,
                   },
@@ -933,21 +801,15 @@ export const createAssignment = async (
               );
             }
 
-            /*
-             * Exactamente 50 municiones 9 mm.
-             */
             if (
-              ammunitionQuantity !==
-              50
+              ammunitionQuantity !== 50
             ) {
               throw createAssignmentError(
                 "La provisión de pistola requiere exactamente 50 municiones 9 mm",
                 400,
                 [
                   {
-                    field:
-                      "details",
-
+                    field: "details",
                     message:
                       `Cantidad de municiones 9 mm recibida: ${ammunitionQuantity}. Cantidad requerida: 50`,
                   },
@@ -956,15 +818,8 @@ export const createAssignment = async (
             }
           }
 
-          /*
-           * ==========================================
-           * 5. VALIDAMOS Y RESERVAMOS EQUIPAMIENTO
-           * ==========================================
-           */
-
-          for (
-            const detail of details
-          ) {
+          // RESERVAR EQUIPAMIENTO
+          for (const detail of details) {
             const equipment =
               equipmentList.find(
                 (item) =>
@@ -972,22 +827,13 @@ export const createAssignment = async (
                   detail.equipmentId,
               );
 
-            /*
-             * El tipo de equipamiento
-             * debe estar activo.
-             */
-            if (
-              !equipment.type
-                .isActive
-            ) {
+            if (!equipment.type.isActive) {
               throw createAssignmentError(
                 "El tipo de equipamiento no está activo",
                 400,
                 [
                   {
-                    field:
-                      "details",
-
+                    field: "details",
                     message:
                       `${equipment.type.name} no se encuentra habilitado para nuevas asignaciones`,
                   },
@@ -995,39 +841,18 @@ export const createAssignment = async (
               );
             }
 
-            /*
-             * =====================================
-             * EQUIPAMIENTO INDIVIDUAL
-             * =====================================
-             *
-             * Ejemplos:
-             *
-             * - Pistola
-             * - Escopeta
-             * - Chaleco
-             * - Radio
-             */
-
             if (
               equipment.type
                 .trackingMode ===
               "INDIVIDUAL"
             ) {
-              /*
-               * Un equipo individual
-               * siempre se asigna de a 1.
-               */
-              if (
-                detail.quantity !== 1
-              ) {
+              if (detail.quantity !== 1) {
                 throw createAssignmentError(
                   "Cantidad inválida para equipamiento individual",
                   400,
                   [
                     {
-                      field:
-                        "details",
-
+                      field: "details",
                       message:
                         `${equipment.type.name} es un equipo individual y solo puede asignarse una unidad`,
                     },
@@ -1035,14 +860,10 @@ export const createAssignment = async (
                 );
               }
 
-              /*
-               * Debe estar disponible.
-               */
               if (
                 equipment.status !==
                   "DISPONIBLE" ||
-                equipment
-                  .availableQuantity <
+                equipment.availableQuantity <
                   1
               ) {
                 throw createAssignmentError(
@@ -1050,14 +871,9 @@ export const createAssignment = async (
                   409,
                   [
                     {
-                      field:
-                        "details",
-
+                      field: "details",
                       message:
-                        `${
-                          equipment.type
-                            .name
-                        }${
+                        `${equipment.type.name}${
                           equipment.serialNumber
                             ? ` - Serie ${equipment.serialNumber}`
                             : ""
@@ -1067,53 +883,33 @@ export const createAssignment = async (
                 );
               }
 
-              /*
-               * Reserva atómica.
-               *
-               * Evita que dos operaciones
-               * puedan asignar al mismo
-               * tiempo el mismo equipo.
-               */
               const updated =
                 await tx.equipment.updateMany(
                   {
                     where: {
-                      id:
-                        equipment.id,
-
+                      id: equipment.id,
                       status:
                         "DISPONIBLE",
-
-                      availableQuantity:
-                        {
-                          gte: 1,
-                        },
+                      availableQuantity: {
+                        gte: 1,
+                      },
                     },
-
                     data: {
-                      availableQuantity:
-                        {
-                          decrement:
-                            1,
-                        },
-
-                      status:
-                        "ASIGNADO",
+                      availableQuantity: {
+                        decrement: 1,
+                      },
+                      status: "ASIGNADO",
                     },
                   },
                 );
 
-              if (
-                updated.count !== 1
-              ) {
+              if (updated.count !== 1) {
                 throw createAssignmentError(
                   "El equipamiento dejó de estar disponible",
                   409,
                   [
                     {
-                      field:
-                        "details",
-
+                      field: "details",
                       message:
                         `${equipment.type.name} fue asignado por otra operación`,
                     },
@@ -1124,26 +920,11 @@ export const createAssignment = async (
               continue;
             }
 
-            /*
-             * =====================================
-             * EQUIPAMIENTO POR CANTIDAD
-             * =====================================
-             *
-             * Ejemplos:
-             *
-             * - Cargadores
-             * - Municiones
-             */
-
             if (
               equipment.type
                 .trackingMode ===
               "QUANTITY"
             ) {
-              /*
-               * El registro debe permitir
-               * nuevas asignaciones.
-               */
               if (
                 equipment.status !==
                 "DISPONIBLE"
@@ -1153,9 +934,7 @@ export const createAssignment = async (
                   409,
                   [
                     {
-                      field:
-                        "details",
-
+                      field: "details",
                       message:
                         `${equipment.type.name} no se encuentra disponible`,
                     },
@@ -1163,12 +942,8 @@ export const createAssignment = async (
                 );
               }
 
-              /*
-               * Verificamos stock.
-               */
               if (
-                equipment
-                  .availableQuantity <
+                equipment.availableQuantity <
                 detail.quantity
               ) {
                 throw createAssignmentError(
@@ -1176,9 +951,7 @@ export const createAssignment = async (
                   409,
                   [
                     {
-                      field:
-                        "details",
-
+                      field: "details",
                       message:
                         `Stock insuficiente de ${equipment.type.name}. Disponible: ${equipment.availableQuantity}`,
                     },
@@ -1186,48 +959,34 @@ export const createAssignment = async (
                 );
               }
 
-              /*
-               * Descontamos stock
-               * de forma atómica.
-               */
               const updated =
                 await tx.equipment.updateMany(
                   {
                     where: {
-                      id:
-                        equipment.id,
-
+                      id: equipment.id,
                       status:
                         "DISPONIBLE",
-
-                      availableQuantity:
-                        {
-                          gte:
-                            detail.quantity,
-                        },
+                      availableQuantity: {
+                        gte:
+                          detail.quantity,
+                      },
                     },
-
                     data: {
-                      availableQuantity:
-                        {
-                          decrement:
-                            detail.quantity,
-                        },
+                      availableQuantity: {
+                        decrement:
+                          detail.quantity,
+                      },
                     },
                   },
                 );
 
-              if (
-                updated.count !== 1
-              ) {
+              if (updated.count !== 1) {
                 throw createAssignmentError(
                   "El stock cambió durante la asignación",
                   409,
                   [
                     {
-                      field:
-                        "details",
-
+                      field: "details",
                       message:
                         `Ya no existe stock suficiente de ${equipment.type.name}`,
                     },
@@ -1235,18 +994,12 @@ export const createAssignment = async (
                 );
               }
 
-              /*
-               * Verificamos cuánto stock
-               * quedó disponible.
-               */
               const updatedEquipment =
                 await tx.equipment.findUnique(
                   {
                     where: {
-                      id:
-                        equipment.id,
+                      id: equipment.id,
                     },
-
                     select: {
                       availableQuantity:
                         true,
@@ -1254,30 +1007,17 @@ export const createAssignment = async (
                   },
                 );
 
-              /*
-               * Si queda stock 0:
-               *
-               * ASIGNADO
-               *
-               * Si todavía hay unidades:
-               *
-               * DISPONIBLE
-               */
               if (
                 updatedEquipment
-                  .availableQuantity ===
-                0
+                  .availableQuantity === 0
               ) {
                 await tx.equipment.update(
                   {
                     where: {
-                      id:
-                        equipment.id,
+                      id: equipment.id,
                     },
-
                     data: {
-                      status:
-                        "ASIGNADO",
+                      status: "ASIGNADO",
                     },
                   },
                 );
@@ -1285,50 +1025,26 @@ export const createAssignment = async (
             }
           }
 
-          /*
-           * ==========================================
-           * 6. CREAMOS LA ASIGNACIÓN
-           * ==========================================
-           *
-           * PERMANENT
-           * -> En poder del oficial
-           *
-           * TEMPORARY
-           * -> Sala de Armas
-           *
-           * No existe physicalStatus.
-           */
-
+          // GUARDAR ASIGNACIÓN
           return tx.assignment.create({
             data: {
               personnelId,
-
               type,
-
-              status:
-                "ACTIVE",
-
+              status: "ACTIVE",
               observations:
-                observations ||
-                null,
-
+                observations || null,
               details: {
-                create:
-                  details.map(
-                    (detail) => ({
-                      equipmentId:
-                        detail.equipmentId,
-
-                      quantity:
-                        detail.quantity,
-
-                      returnedQuantity:
-                        0,
-                    }),
-                  ),
+                create: details.map(
+                  (detail) => ({
+                    equipmentId:
+                      detail.equipmentId,
+                    quantity:
+                      detail.quantity,
+                    returnedQuantity: 0,
+                  }),
+                ),
               },
             },
-
             include:
               getAssignmentInclude(),
           });
@@ -1353,134 +1069,80 @@ export const createAssignment = async (
   }
 };
 
-/*
- * =====================================================
- * DEVOLUCIÓN DEFINITIVA
- * =====================================================
- *
- * Esta operación significa que
- * el equipamiento deja de estar
- * asignado al personal.
- *
- * No representa una entrega diaria
- * en Sala de Armas.
- *
- * INDIVIDUAL:
- * devuelve una unidad.
- *
- * QUANTITY:
- * permite devolución parcial.
- */
-
+// DEVOLUCIÓN DEFINITIVA
 export const returnAssignmentDetail =
   async (req, res) => {
     try {
-      const assignmentId =
-        Number(
-          req.params
-            .assignmentId,
-        );
+      const assignmentId = Number(
+        req.params.assignmentId,
+      );
 
-      const detailId =
-        Number(
-          req.params.detailId,
-        );
+      const detailId = Number(
+        req.params.detailId,
+      );
 
-      const returnQuantity =
-        Number(
-          req.body.quantity,
-        );
+      const returnQuantity = Number(
+        req.body.quantity,
+      );
 
-      /*
-       * VALIDAMOS ID DE ASIGNACIÓN
-       */
       if (
-        !Number.isInteger(
-          assignmentId,
-        ) ||
+        !Number.isInteger(assignmentId) ||
         assignmentId <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-
-            error: {
-              message:
-                "ID de asignación inválido",
-            },
-          });
+        return res.status(400).json({
+          success: false,
+          error: {
+            message:
+              "ID de asignación inválido",
+          },
+        });
       }
 
-      /*
-       * VALIDAMOS ID DEL DETALLE
-       */
       if (
-        !Number.isInteger(
-          detailId,
-        ) ||
+        !Number.isInteger(detailId) ||
         detailId <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-
-            error: {
-              message:
-                "ID de detalle inválido",
-            },
-          });
+        return res.status(400).json({
+          success: false,
+          error: {
+            message:
+              "ID de detalle inválido",
+          },
+        });
       }
 
-      /*
-       * VALIDAMOS CANTIDAD
-       */
       if (
         !Number.isInteger(
           returnQuantity,
         ) ||
         returnQuantity <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-
-            error: {
-              message:
-                "La cantidad a devolver no es válida",
-
-              details: [
-                {
-                  field:
-                    "quantity",
-
-                  message:
-                    "La cantidad debe ser un número entero mayor a cero",
-                },
-              ],
-            },
-          });
+        return res.status(400).json({
+          success: false,
+          error: {
+            message:
+              "La cantidad a devolver no es válida",
+            details: [
+              {
+                field: "quantity",
+                message:
+                  "La cantidad debe ser un número entero mayor a cero",
+              },
+            ],
+          },
+        });
       }
 
       const updatedAssignment =
         await prisma.$transaction(
           async (tx) => {
-            /*
-             * =====================================
-             * 1. VERIFICAMOS ASIGNACIÓN
-             * =====================================
-             */
-
+            // ASIGNACIÓN
             const assignment =
               await tx.assignment.findUnique(
                 {
                   where: {
-                    id:
-                      assignmentId,
+                    id: assignmentId,
                   },
-
                   select: {
                     id: true,
                     status: true,
@@ -1495,10 +1157,6 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * Solo una asignación activa
-             * puede recibir devoluciones.
-             */
             if (
               assignment.status !==
               "ACTIVE"
@@ -1510,7 +1168,6 @@ export const returnAssignmentDetail =
                   {
                     field:
                       "assignment",
-
                     message:
                       "Solo se pueden devolver elementos de una asignación activa",
                   },
@@ -1518,22 +1175,14 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * =====================================
-             * 2. BUSCAMOS EL DETALLE
-             * =====================================
-             */
-
+            // DETALLE
             const detail =
               await tx.assignmentDetail.findFirst(
                 {
                   where: {
-                    id:
-                      detailId,
-
+                    id: detailId,
                     assignmentId,
                   },
-
                   include: {
                     equipment: {
                       include: {
@@ -1554,28 +1203,19 @@ export const returnAssignmentDetail =
             const equipment =
               detail.equipment;
 
-            /*
-             * Cantidad todavía asignada.
-             */
             const pendingQuantity =
               detail.quantity -
               detail.returnedQuantity;
 
-            /*
-             * Ya fue devuelto completamente.
-             */
             if (
-              pendingQuantity <=
-              0
+              pendingQuantity <= 0
             ) {
               throw createAssignmentError(
                 "El equipamiento ya fue devuelto",
                 409,
                 [
                   {
-                    field:
-                      "quantity",
-
+                    field: "quantity",
                     message:
                       "Este elemento ya fue devuelto completamente",
                   },
@@ -1583,10 +1223,6 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * No permitimos devolver
-             * más de lo asignado.
-             */
             if (
               returnQuantity >
               pendingQuantity
@@ -1596,9 +1232,7 @@ export const returnAssignmentDetail =
                 400,
                 [
                   {
-                    field:
-                      "quantity",
-
+                    field: "quantity",
                     message:
                       `Cantidad pendiente de devolución: ${pendingQuantity}`,
                   },
@@ -1606,25 +1240,18 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * Equipamiento individual:
-             * siempre se devuelve 1.
-             */
             if (
               equipment.type
                 .trackingMode ===
                 "INDIVIDUAL" &&
-              returnQuantity !==
-                1
+              returnQuantity !== 1
             ) {
               throw createAssignmentError(
                 "Cantidad inválida para equipamiento individual",
                 400,
                 [
                   {
-                    field:
-                      "quantity",
-
+                    field: "quantity",
                     message:
                       `${equipment.type.name} es un equipo individual y debe devolverse una unidad`,
                   },
@@ -1632,10 +1259,6 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * Evitamos superar
-             * el stock total.
-             */
             const newAvailableQuantity =
               equipment
                 .availableQuantity +
@@ -1650,9 +1273,7 @@ export const returnAssignmentDetail =
                 409,
                 [
                   {
-                    field:
-                      "quantity",
-
+                    field: "quantity",
                     message:
                       "La cantidad disponible no puede superar el stock total",
                   },
@@ -1660,48 +1281,33 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * =====================================
-             * 3. ACTUALIZAMOS EL DETALLE
-             * =====================================
-             */
-
+            // ACTUALIZAR DETALLE
             const updatedDetail =
               await tx.assignmentDetail.updateMany(
                 {
                   where: {
-                    id:
-                      detail.id,
-
+                    id: detail.id,
                     returnedQuantity:
                       detail.returnedQuantity,
                   },
-
                   data: {
-                    returnedQuantity:
-                      {
-                        increment:
-                          returnQuantity,
-                      },
+                    returnedQuantity: {
+                      increment:
+                        returnQuantity,
+                    },
                   },
                 },
               );
 
-            /*
-             * Control optimista.
-             */
             if (
-              updatedDetail.count !==
-              1
+              updatedDetail.count !== 1
             ) {
               throw createAssignmentError(
                 "La devolución no pudo completarse",
                 409,
                 [
                   {
-                    field:
-                      "quantity",
-
+                    field: "quantity",
                     message:
                       "El estado de la asignación cambió durante la operación",
                   },
@@ -1709,36 +1315,21 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * =====================================
-             * 4. REINCORPORAMOS STOCK
-             * =====================================
-             */
-
+            // REINCORPORAR STOCK
             const updatedEquipment =
               await tx.equipment.updateMany(
                 {
                   where: {
-                    id:
-                      equipment.id,
-
+                    id: equipment.id,
                     availableQuantity:
                       equipment
                         .availableQuantity,
                   },
-
                   data: {
-                    availableQuantity:
-                      {
-                        increment:
-                          returnQuantity,
-                      },
-
-                    /*
-                     * Al existir nuevamente
-                     * disponibilidad vuelve
-                     * a DISPONIBLE.
-                     */
+                    availableQuantity: {
+                      increment:
+                        returnQuantity,
+                    },
                     status:
                       "DISPONIBLE",
                   },
@@ -1746,17 +1337,14 @@ export const returnAssignmentDetail =
               );
 
             if (
-              updatedEquipment.count !==
-              1
+              updatedEquipment.count !== 1
             ) {
               throw createAssignmentError(
                 "El stock cambió durante la devolución",
                 409,
                 [
                   {
-                    field:
-                      "quantity",
-
+                    field: "quantity",
                     message:
                       "No se pudo actualizar el stock del equipamiento",
                   },
@@ -1764,22 +1352,15 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * =====================================
-             * 5. VERIFICAMOS SI TODO FUE DEVUELTO
-             * =====================================
-             */
-
+            // CERRAR ASIGNACIÓN
             const assignmentDetails =
               await tx.assignmentDetail.findMany(
                 {
                   where: {
                     assignmentId,
                   },
-
                   select: {
                     quantity: true,
-
                     returnedQuantity:
                       true,
                   },
@@ -1793,28 +1374,15 @@ export const returnAssignmentDetail =
                   item.quantity,
               );
 
-            /*
-             * Si todos los elementos
-             * fueron devueltos:
-             *
-             * ACTIVE
-             * ↓
-             * RETURNED
-             */
-            if (
-              fullyReturned
-            ) {
+            if (fullyReturned) {
               await tx.assignment.update(
                 {
                   where: {
-                    id:
-                      assignmentId,
+                    id: assignmentId,
                   },
-
                   data: {
                     status:
                       "RETURNED",
-
                     returnedAt:
                       new Date(),
                   },
@@ -1822,19 +1390,11 @@ export const returnAssignmentDetail =
               );
             }
 
-            /*
-             * =====================================
-             * 6. DEVOLVEMOS ASIGNACIÓN ACTUALIZADA
-             * =====================================
-             */
-
             return tx.assignment.findUnique(
               {
                 where: {
-                  id:
-                    assignmentId,
+                  id: assignmentId,
                 },
-
                 include:
                   getAssignmentInclude(),
               },
@@ -1842,13 +1402,10 @@ export const returnAssignmentDetail =
           },
         );
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          data:
-            updatedAssignment,
-        });
+      return res.status(200).json({
+        success: true,
+        data: updatedAssignment,
+      });
     } catch (error) {
       console.error(
         "Error al devolver equipamiento:",
@@ -1862,3 +1419,314 @@ export const returnAssignmentDetail =
       );
     }
   };
+
+// DEVOLUCIÓN DE PROVISIÓN DE PISTOLA
+export const returnPistolProvision = async (
+  req,
+  res,
+) => {
+  try {
+    const assignmentId = Number(
+      req.params.assignmentId,
+    );
+
+    if (
+      !Number.isInteger(assignmentId) ||
+      assignmentId <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message:
+            "ID de asignación inválido",
+        },
+      });
+    }
+
+    const updatedAssignment =
+      await prisma.$transaction(
+        async (tx) => {
+          const assignment =
+            await tx.assignment.findUnique({
+              where: {
+                id: assignmentId,
+              },
+              include: {
+                details: {
+                  include: {
+                    equipment: {
+                      include: {
+                        type: true,
+                      },
+                    },
+                  },
+                },
+              },
+            });
+
+          if (!assignment) {
+            throw createAssignmentError(
+              "Asignación no encontrada",
+              404,
+            );
+          }
+
+          if (
+            assignment.status !== "ACTIVE"
+          ) {
+            throw createAssignmentError(
+              "La asignación no se encuentra activa",
+              409,
+              [
+                {
+                  field: "assignment",
+                  message:
+                    "La provisión ya fue devuelta o no se encuentra activa",
+                },
+              ],
+            );
+          }
+
+          if (
+            assignment.type !==
+            "PERMANENT"
+          ) {
+            throw createAssignmentError(
+              "La asignación no corresponde a una provisión permanente de pistola",
+              400,
+              [
+                {
+                  field: "assignment",
+                  message:
+                    "Solo una provisión permanente de pistola puede devolverse con esta operación",
+                },
+              ],
+            );
+          }
+
+          const pistolDetails =
+            assignment.details.filter(
+              (detail) =>
+                isPistolEquipment(
+                  detail.equipment,
+                ),
+            );
+
+          const magazineDetails =
+            assignment.details.filter(
+              (detail) =>
+                isMagazineEquipment(
+                  detail.equipment,
+                ),
+            );
+
+          const ammunitionDetails =
+            assignment.details.filter(
+              (detail) =>
+                isNineMillimeterAmmunition(
+                  detail.equipment,
+                ),
+            );
+
+          const unrelatedDetails =
+            assignment.details.filter(
+              (detail) =>
+                !isPistolEquipment(
+                  detail.equipment,
+                ) &&
+                !isMagazineEquipment(
+                  detail.equipment,
+                ) &&
+                !isNineMillimeterAmmunition(
+                  detail.equipment,
+                ),
+            );
+
+          const magazineQuantity =
+            magazineDetails.reduce(
+              (total, detail) =>
+                total + detail.quantity,
+              0,
+            );
+
+          const ammunitionQuantity =
+            ammunitionDetails.reduce(
+              (total, detail) =>
+                total + detail.quantity,
+              0,
+            );
+
+          const validProvision =
+            pistolDetails.length === 1 &&
+            pistolDetails[0].quantity === 1 &&
+            magazineQuantity === 3 &&
+            ammunitionQuantity === 50 &&
+            unrelatedDetails.length === 0;
+
+          if (!validProvision) {
+            throw createAssignmentError(
+              "La asignación no tiene la estructura de una provisión de pistola",
+              409,
+              [
+                {
+                  field: "assignment",
+                  message:
+                    "La provisión debe contener 1 pistola, 3 cargadores y 50 municiones 9 mm",
+                },
+              ],
+            );
+          }
+
+          const pendingDetails =
+            assignment.details
+              .map((detail) => ({
+                ...detail,
+                pendingQuantity:
+                  detail.quantity -
+                  detail.returnedQuantity,
+              }))
+              .filter(
+                (detail) =>
+                  detail.pendingQuantity > 0,
+              );
+
+          if (
+            pendingDetails.length === 0
+          ) {
+            throw createAssignmentError(
+              "La provisión ya fue devuelta completamente",
+              409,
+            );
+          }
+
+          for (const detail of pendingDetails) {
+            const equipment =
+              detail.equipment;
+
+            const newAvailableQuantity =
+              equipment.availableQuantity +
+              detail.pendingQuantity;
+
+            if (
+              newAvailableQuantity >
+              equipment.totalQuantity
+            ) {
+              throw createAssignmentError(
+                "La devolución produciría un stock inválido",
+                409,
+                [
+                  {
+                    field: "assignment",
+                    message:
+                      `No se puede devolver ${equipment.type.name} porque el stock disponible superaría el stock total`,
+                  },
+                ],
+              );
+            }
+
+            const updatedDetail =
+              await tx.assignmentDetail.updateMany(
+                {
+                  where: {
+                    id: detail.id,
+                    assignmentId,
+                    returnedQuantity:
+                      detail.returnedQuantity,
+                  },
+                  data: {
+                    returnedQuantity: {
+                      increment:
+                        detail.pendingQuantity,
+                    },
+                  },
+                },
+              );
+
+            if (
+              updatedDetail.count !== 1
+            ) {
+              throw createAssignmentError(
+                "La provisión cambió durante la devolución",
+                409,
+                [
+                  {
+                    field: "assignment",
+                    message:
+                      "No se pudo completar la devolución porque uno de los elementos cambió durante la operación",
+                  },
+                ],
+              );
+            }
+
+            const updatedEquipment =
+              await tx.equipment.updateMany(
+                {
+                  where: {
+                    id: equipment.id,
+                    availableQuantity:
+                      equipment.availableQuantity,
+                  },
+                  data: {
+                    availableQuantity: {
+                      increment:
+                        detail.pendingQuantity,
+                    },
+                    status: "DISPONIBLE",
+                  },
+                },
+              );
+
+            if (
+              updatedEquipment.count !== 1
+            ) {
+              throw createAssignmentError(
+                "El stock cambió durante la devolución",
+                409,
+                [
+                  {
+                    field: "assignment",
+                    message:
+                      `No se pudo reincorporar ${equipment.type.name} al stock`,
+                  },
+                ],
+              );
+            }
+          }
+
+          await tx.assignment.update({
+            where: {
+              id: assignmentId,
+            },
+            data: {
+              status: "RETURNED",
+              returnedAt: new Date(),
+            },
+          });
+
+          return tx.assignment.findUnique({
+            where: {
+              id: assignmentId,
+            },
+            include:
+              getAssignmentInclude(),
+          });
+        },
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: updatedAssignment,
+    });
+  } catch (error) {
+    console.error(
+      "Error al devolver provisión de pistola:",
+      error,
+    );
+
+    return sendControllerError(
+      res,
+      error,
+      "No se pudo devolver la provisión de pistola",
+    );
+  }
+};

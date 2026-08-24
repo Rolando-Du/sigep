@@ -21,28 +21,6 @@ enum EquipmentStatus {
   BAJA
 }
 
-//
-// Categoría general del equipamiento.
-//
-// ARMAMENTO:
-// Pistolas, escopetas, fusiles, etc.
-//
-// PROTECCION:
-// Chalecos y otros elementos de protección.
-//
-// COMUNICACIONES:
-// Radios y equipos de comunicación.
-//
-// MUNICION:
-// Municiones y cartuchería.
-//
-// ACCESORIO:
-// Cargadores y otros accesorios.
-//
-// OTRO:
-// Equipamiento que no pertenece
-// a las categorías anteriores.
-//
 enum EquipmentCategory {
   ARMAMENTO
   PROTECCION
@@ -52,18 +30,6 @@ enum EquipmentCategory {
   OTRO
 }
 
-//
-// Tipo logístico de asignación.
-//
-// PERMANENT:
-// El equipamiento está asignado al personal
-// y permanece físicamente en poder del oficial.
-//
-// TEMPORARY:
-// El equipamiento está asignado al personal,
-// pero permanece resguardado en Sala de Armas
-// cuando no está siendo utilizado.
-//
 enum AssignmentType {
   PERMANENT
   TEMPORARY
@@ -90,7 +56,6 @@ model Personnel {
   phone String?
   email String?
 
-  // Campo anterior conservado temporalmente.
   addressLegacy String? @map("address")
 
   addressStreet   String?
@@ -123,86 +88,16 @@ model Personnel {
 model EquipmentType {
   id Int @id @default(autoincrement())
 
-  //
-  // Tipo específico.
-  //
-  // Ejemplos:
-  // Pistola
-  // Escopeta
-  // Chaleco Balístico
-  // HT
-  // Cargador
-  // Munición 9 mm
-  // Munición calibre 12
-  // Munición calibre 12 - Posta de goma
-  //
   name String @unique
 
   description String?
 
   isActive Boolean @default(true)
 
-  //
-  // Categoría general.
-  //
-  // Pistola  -> ARMAMENTO
-  // Escopeta -> ARMAMENTO
-  // HT       -> COMUNICACIONES
-  // Munición -> MUNICION
-  //
   category EquipmentCategory @default(OTRO)
 
-  //
-  // INDIVIDUAL:
-  // se identifica cada unidad.
-  //
-  // QUANTITY:
-  // se administra como stock.
-  //
   trackingMode EquipmentTrackingMode @default(INDIVIDUAL)
 
-  //
-  // Indica si el elemento puede
-  // consumirse durante una asignación.
-  //
-  // true:
-  // Munición 9 mm
-  // Munición calibre 12
-  // Postas de goma
-  //
-  // false:
-  // HT
-  // Cargadores
-  // Pistolas
-  // Escopetas
-  // Chalecos
-  //
-  // IMPORTANTE:
-  // QUANTITY no significa necesariamente
-  // que el elemento sea consumible.
-  //
-  // Ejemplo:
-  // HT -> QUANTITY pero NO consumible.
-  //
-  isConsumable Boolean @default(false)
-
-  //
-  // Modalidad logística predeterminada.
-  //
-  // Pistola:
-  // PERMANENT
-  //
-  // Escopeta:
-  // TEMPORARY
-  //
-  // HT:
-  // TEMPORARY
-  //
-  // Para elementos auxiliares como
-  // cargadores o municiones puede
-  // quedar null, ya que acompañan
-  // a la asignación principal.
-  //
   defaultAssignmentType AssignmentType?
 
   equipment Equipment[]
@@ -214,7 +109,6 @@ model EquipmentType {
   @@index([isActive])
   @@index([category])
   @@index([trackingMode])
-  @@index([isConsumable])
   @@index([defaultAssignmentType])
   @@map("equipment_types")
 }
@@ -231,16 +125,6 @@ model Equipment {
   brand String?
   model String?
 
-  //
-  // Estado administrativo/operativo.
-  //
-  // DISPONIBLE:
-  // puede ser asignado.
-  //
-  // ASIGNADO:
-  // pertenece actualmente a una
-  // asignación activa.
-  //
   status EquipmentStatus @default(DISPONIBLE)
 
   totalQuantity     Int @default(1)
@@ -264,31 +148,12 @@ model Assignment {
   personnelId Int
   personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Restrict)
 
-  //
-  // PERMANENT:
-  // El equipamiento permanece
-  // en poder del oficial.
-  //
-  // TEMPORARY:
-  // El equipamiento está asignado
-  // al oficial pero se resguarda
-  // en Sala de Armas.
-  //
   type AssignmentType
 
   status AssignmentStatus @default(ACTIVE)
 
-  //
-  // Fecha en que comenzó
-  // la asignación.
-  //
   assignedAt DateTime @default(now())
 
-  //
-  // Solo se completa cuando
-  // existe cierre o devolución
-  // definitiva de toda la asignación.
-  //
   returnedAt DateTime?
 
   observations String?
@@ -314,46 +179,9 @@ model AssignmentDetail {
   equipmentId Int
   equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
 
-  //
-  // Cantidad originalmente asignada.
-  //
   quantity Int @default(1)
 
-  //
-  // Cantidad devuelta físicamente
-  // y reincorporada al stock.
-  //
-  // INDIVIDUAL:
-  // normalmente será 0 o 1.
-  //
-  // QUANTITY no consumible:
-  // puede permitir devolución parcial.
-  //
-  // MUNICIÓN consumible:
-  // representa únicamente las unidades
-  // devueltas SIN USO.
-  //
   returnedQuantity Int @default(0)
-
-  //
-  // Cantidad utilizada o consumida.
-  //
-  // Se utiliza principalmente para
-  // elementos marcados como:
-  //
-  // isConsumable = true
-  //
-  // Ejemplo:
-  //
-  // 15 postas de goma asignadas
-  // 3 devueltas sin uso
-  // 12 utilizadas
-  //
-  // quantity         = 15
-  // returnedQuantity = 3
-  // consumedQuantity = 12
-  //
-  consumedQuantity Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

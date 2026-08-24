@@ -26,6 +26,10 @@ import {
   getEquipmentTypes,
 } from "../services/equipmentType.service";
 
+import {
+  getAssignments,
+} from "../services/assignment.service";
+
 const STATUS_LABELS = {
   DISPONIBLE: "Disponible",
   ASIGNADO: "Asignado",
@@ -92,6 +96,11 @@ const Equipment = () => {
   ] = useState([]);
 
   const [
+    assignments,
+    setAssignments,
+  ] = useState([]);
+
+  const [
     isTypesModalOpen,
     setIsTypesModalOpen,
   ] = useState(false);
@@ -138,9 +147,11 @@ const Equipment = () => {
         const [
           equipmentTypesData,
           equipmentData,
+          assignmentsData,
         ] = await Promise.all([
           getEquipmentTypes(),
           getEquipment(),
+          getAssignments(),
         ]);
 
         setEquipmentTypes(
@@ -149,6 +160,12 @@ const Equipment = () => {
 
         setEquipment(
           equipmentData,
+        );
+
+        setAssignments(
+          Array.isArray(assignmentsData)
+            ? assignmentsData
+            : [],
         );
       } catch (error) {
         console.error(
@@ -350,6 +367,52 @@ const Equipment = () => {
       0,
     );
 
+  const assignedQuantityByEquipment =
+    assignments
+      .filter(
+        (assignment) =>
+          assignment.status === "ACTIVE",
+      )
+      .reduce(
+        (result, assignment) => {
+          (
+            assignment.details || []
+          ).forEach((detail) => {
+            const pendingQuantity =
+              Math.max(
+                0,
+                (detail.quantity || 0) -
+                  (detail.returnedQuantity ||
+                    0),
+              );
+
+            if (
+              pendingQuantity <= 0
+            ) {
+              return;
+            }
+
+            result[detail.equipmentId] =
+              (result[
+                detail.equipmentId
+              ] || 0) +
+              pendingQuantity;
+          });
+
+          return result;
+        },
+        {},
+      );
+
+  const assignedCount =
+    Object.values(
+      assignedQuantityByEquipment,
+    ).reduce(
+      (total, quantity) =>
+        total + quantity,
+      0,
+    );
+
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* ENCABEZADO */}
@@ -417,7 +480,7 @@ const Equipment = () => {
       )}
 
       {/* RESUMEN */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
             Registros
@@ -435,10 +498,22 @@ const Equipment = () => {
             Unidades disponibles
           </p>
 
-          <p className="mt-2 text-2xl font-semibold text-slate-900">
+          <p className="mt-2 text-2xl font-semibold text-emerald-700">
             {isLoading
               ? "..."
               : availableCount}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+            Unidades asignadas
+          </p>
+
+          <p className="mt-2 text-2xl font-semibold text-blue-700">
+            {isLoading
+              ? "..."
+              : assignedCount}
           </p>
         </div>
 
@@ -688,19 +763,28 @@ const Equipment = () => {
                       >
                         {isQuantity ? (
                           <>
-                            <p className="text-sm font-semibold text-slate-800">
-                              {
-                                item.availableQuantity
-                              }{" "}
-                              disponibles
-                            </p>
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-emerald-700">
+                                Disponibles:{" "}
+                                {
+                                  item.availableQuantity
+                                }
+                              </p>
 
-                            <p className="mt-1 text-xs text-slate-500">
-                              Total:{" "}
-                              {
-                                item.totalQuantity
-                              }
-                            </p>
+                              <p className="text-sm font-semibold text-blue-700">
+                                Asignadas:{" "}
+                                {assignedQuantityByEquipment[
+                                  item.id
+                                ] || 0}
+                              </p>
+
+                              <p className="text-xs text-slate-500">
+                                Total:{" "}
+                                {
+                                  item.totalQuantity
+                                }
+                              </p>
+                            </div>
                           </>
                         ) : (
                           <p className="text-sm font-medium text-slate-700">

@@ -9,8 +9,7 @@ const handleResponse = async (
   response,
   fallbackMessage,
 ) => {
-  const result =
-    await response.json();
+  const result = await response.json();
 
   if (!response.ok) {
     const error = new Error(
@@ -18,9 +17,7 @@ const handleResponse = async (
         fallbackMessage,
     );
 
-    error.status =
-      response.status;
-
+    error.status = response.status;
     error.details =
       result?.error?.details || [];
 
@@ -30,12 +27,7 @@ const handleResponse = async (
   return result.data;
 };
 
-/*
- * OBTENER TODAS LAS ASIGNACIONES
- *
- * Se utiliza en la pantalla general
- * de Asignaciones.
- */
+// OBTENER ASIGNACIONES
 export const getAssignments =
   async () => {
     const response = await fetch(
@@ -48,10 +40,7 @@ export const getAssignments =
     );
   };
 
-/*
- * OBTENER ASIGNACIONES
- * DE UNA PERSONA
- */
+// ASIGNACIONES DE PERSONAL
 export const getPersonnelAssignments =
   async (personnelId) => {
     const response = await fetch(
@@ -64,30 +53,17 @@ export const getPersonnelAssignments =
     );
   };
 
-/*
- * CREAR ASIGNACIÓN
- *
- * PERMANENT:
- * El equipamiento queda asignado
- * y permanece en poder del oficial.
- *
- * TEMPORARY:
- * El equipamiento queda asignado
- * al oficial y se considera
- * resguardado en Sala de Armas.
- */
+// CREAR ASIGNACIÓN
 export const createAssignment =
   async (assignmentData) => {
     const response = await fetch(
       ASSIGNMENTS_URL,
       {
         method: "POST",
-
         headers: {
           "Content-Type":
             "application/json",
         },
-
         body: JSON.stringify(
           assignmentData,
         ),
@@ -100,20 +76,7 @@ export const createAssignment =
     );
   };
 
-/*
- * DEVOLUCIÓN DEFINITIVA
- *
- * El equipamiento deja de estar
- * asignado al personal y vuelve
- * al stock disponible.
- *
- * INDIVIDUAL:
- * normalmente devuelve 1 unidad.
- *
- * QUANTITY:
- * puede devolver una cantidad
- * parcial o total.
- */
+// DEVOLUCIÓN DEFINITIVA
 export const returnAssignmentDetail =
   async ({
     assignmentId,
@@ -124,12 +87,10 @@ export const returnAssignmentDetail =
       `${ASSIGNMENTS_URL}/${assignmentId}/details/${detailId}/return`,
       {
         method: "POST",
-
         headers: {
           "Content-Type":
             "application/json",
         },
-
         body: JSON.stringify({
           quantity,
         }),
@@ -139,5 +100,25 @@ export const returnAssignmentDetail =
     return handleResponse(
       response,
       "No se pudo registrar la devolución",
+    );
+  };
+
+// DEVOLUCIÓN DE PROVISIÓN DE PISTOLA
+export const returnPistolProvision =
+  async (assignmentId) => {
+    const response = await fetch(
+      `${ASSIGNMENTS_URL}/${assignmentId}/pistol-provision/return`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+      },
+    );
+
+    return handleResponse(
+      response,
+      "No se pudo devolver la provisión de pistola",
     );
   };

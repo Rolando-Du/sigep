@@ -25,8 +25,11 @@ import {
   X,
 } from "lucide-react";
 
+import Swal from "sweetalert2";
+
 import {
   getPersonnelAssignments,
+  returnPistolProvision,
 } from "../../services/assignment.service";
 
 import PersonnelAssignmentModal from "./PersonnelAssignmentModal";
@@ -213,6 +216,61 @@ const getEquipmentName = (
     : typeName;
 };
 
+const normalizeText = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const isPistolEquipment = (equipment) =>
+  equipment?.type?.category === "ARMAMENTO" &&
+  normalizeText(equipment?.type?.name).includes(
+    "pistola",
+  );
+
+const isMagazineEquipment = (equipment) =>
+  equipment?.type?.category === "ACCESORIO" &&
+  normalizeText(equipment?.type?.name).includes(
+    "cargador",
+  );
+
+const isNineMillimeterAmmunition = (
+  equipment,
+) => {
+  if (
+    equipment?.type?.category !== "MUNICION"
+  ) {
+    return false;
+  }
+
+  const searchableText = normalizeText(
+    [
+      equipment?.type?.name,
+      equipment?.type?.description,
+      equipment?.brand,
+      equipment?.model,
+      equipment?.observations,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return (
+    searchableText.includes("9 mm") ||
+    searchableText.includes("9mm") ||
+    searchableText.includes("9x19") ||
+    searchableText.includes("9 x 19")
+  );
+};
+
+const getOutstandingQuantity = (detail) =>
+  Math.max(
+    0,
+    (detail?.quantity || 0) -
+      (detail?.returnedQuantity || 0),
+  );
+
 const formatDateTime = (value) => {
   if (!value) {
     return "Sin registrar";
@@ -276,6 +334,14 @@ const getAssignmentStatusClasses = (
   return "bg-slate-100 text-slate-600";
 };
 
+const showSuccessAlert = (title, text) =>
+  Swal.fire({
+    icon: "success",
+    title,
+    text,
+    confirmButtonColor: "#163b65",
+  });
+
 const PersonnelDetailModal = ({
   person,
   onClose,
@@ -315,6 +381,11 @@ const PersonnelDetailModal = ({
     assignmentsRefreshKey,
     setAssignmentsRefreshKey,
   ] = useState(0);
+
+  const [
+    returningProvisionId,
+    setReturningProvisionId,
+  ] = useState(null);
 
   useEffect(() => {
     if (!person?.id) {
@@ -375,9 +446,7 @@ const PersonnelDetailModal = ({
     assignmentsRefreshKey,
   ]);
 
-  /*
-   * EQUIPAMIENTO ACTUALMENTE ASIGNADO
-   */
+  // EQUIPAMIENTO ACTUAL
   const activeEquipment =
     useMemo(() => {
       const grouped =
@@ -394,12 +463,8 @@ const PersonnelDetailModal = ({
             assignment.details?.forEach(
               (detail) => {
                 const outstandingQuantity =
-                  Math.max(
-                    0,
-                    (detail.quantity ||
-                      0) -
-                      (detail.returnedQuantity ||
-                        0),
+                  getOutstandingQuantity(
+                    detail,
                   );
 
                 if (
@@ -493,9 +558,148 @@ const PersonnelDetailModal = ({
       );
     }, [assignments]);
 
-  /*
-   * HISTORIAL LOGÍSTICO
-   */
+  // PROVISIONES DE PISTOLA
+  const pistolProvisions =
+    useMemo(() => {
+      return assignments
+        .filter(
+          (assignment) =>
+            assignment.status ===
+              "ACTIVE" &&
+            assignment.type ===
+              "PERMANENT",
+        )
+        .map((assignment) => {
+          const activeDetails =
+            (
+              assignment.details ||
+              []
+            )
+              .map((detail) => ({
+                ...detail,
+                outstandingQuantity:
+                  getOutstandingQuantity(
+                    detail,
+                  ),
+              }))
+              .filter(
+                (detail) =>
+                  detail.equipment &&
+                  detail.outstandingQuantity >
+                    0,
+              );
+
+          const pistolDetail =
+            activeDetails.find(
+              (detail) =>
+                isPistolEquipment(
+                  detail.equipment,
+                ),
+            );
+
+          if (!pistolDetail) {
+            return null;
+          }
+
+          const magazineDetails =
+            activeDetails.filter(
+              (detail) =>
+                isMagazineEquipment(
+                  detail.equipment,
+                ),
+            );
+
+          const ammunitionDetails =
+            activeDetails.filter(
+              (detail) =>
+                isNineMillimeterAmmunition(
+                  detail.equipment,
+                ),
+            );
+
+          return {
+            assignment,
+            pistolDetail,
+            magazineDetails,
+            ammunitionDetails,
+            magazineQuantity:
+              magazineDetails.reduce(
+                (total, detail) =>
+                  total +
+                  detail.outstandingQuantity,
+                0,
+              ),
+            ammunitionQuantity:
+              ammunitionDetails.reduce(
+                (total, detail) =>
+                  total +
+                  detail.outstandingQuantity,
+                0,
+              ),
+          };
+        })
+        .filter(Boolean);
+    }, [assignments]);
+
+  const pistolProvisionAssignmentIds =
+    useMemo(
+      () =>
+        new Set(
+          pistolProvisions.map(
+            ({ assignment }) =>
+              assignment.id,
+          ),
+        ),
+      [pistolProvisions],
+    );
+
+  // EQUIPAMIENTO INDEPENDIENTE
+  const standaloneActiveEquipment =
+    useMemo(() => {
+      return activeEquipment
+        .map((item) => {
+          const sources =
+            item.sources.filter(
+              (source) =>
+                !pistolProvisionAssignmentIds.has(
+                  source.assignmentId,
+                ),
+            );
+
+          if (sources.length === 0) {
+            return null;
+          }
+
+          return {
+            ...item,
+            quantity: sources.reduce(
+              (total, source) =>
+                total +
+                source.quantity,
+              0,
+            ),
+            hasPermanent:
+              sources.some(
+                (source) =>
+                  source.assignmentType ===
+                  "PERMANENT",
+              ),
+            hasTemporary:
+              sources.some(
+                (source) =>
+                  source.assignmentType ===
+                  "TEMPORARY",
+              ),
+            sources,
+          };
+        })
+        .filter(Boolean);
+    }, [
+      activeEquipment,
+      pistolProvisionAssignmentIds,
+    ]);
+
+  // HISTORIAL LOGÍSTICO
   const equipmentHistory =
     useMemo(() => {
       return assignments.flatMap(
@@ -540,44 +744,31 @@ const PersonnelDetailModal = ({
       );
     }, [assignments]);
 
-  /*
-   * ARMAMENTO PERMANENTE
-   *
-   * Solo consideramos armamento
-   * provisto cuando existe una
-   * asignación PERMANENT activa.
-   */
+  // ARMAMENTO PERMANENTE
   const hasIssuedWeapon =
-    activeEquipment.some(
+    pistolProvisions.length > 0 ||
+    standaloneActiveEquipment.some(
       ({
         equipment,
         hasPermanent,
-      }) => {
-        const typeName =
-          equipment.type?.name
-            ?.trim()
-            .toLowerCase() ||
-          "";
-
-        return (
-          hasPermanent &&
-          (
-            typeName.includes(
-              "pistola",
-            ) ||
-            typeName.includes(
-              "armamento",
-            )
-          )
-        );
-      },
+      }) =>
+        hasPermanent &&
+        equipment.type?.category ===
+          "ARMAMENTO",
     );
 
   const handleAssignmentCreated =
     async () => {
+      setIsAssignmentModalOpen(false);
+
       setAssignmentsRefreshKey(
         (current) =>
           current + 1,
+      );
+
+      await showSuccessAlert(
+        "Equipamiento asignado",
+        "La asignación se registró correctamente.",
       );
     };
 
@@ -589,6 +780,69 @@ const PersonnelDetailModal = ({
         (current) =>
           current + 1,
       );
+
+      await showSuccessAlert(
+        "Equipamiento devuelto",
+        "La devolución se registró correctamente.",
+      );
+    };
+
+  const handleReturnPistolProvision =
+    async (assignmentId) => {
+      if (returningProvisionId) {
+        return;
+      }
+
+      const result = await Swal.fire({
+        icon: "question",
+        title: "Devolver provisión",
+        text: "Se devolverán juntos la pistola, 3 cargadores y 50 municiones 9 mm.",
+        showCancelButton: true,
+        confirmButtonText:
+          "Sí, devolver provisión",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#163b65",
+      });
+
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        setReturningProvisionId(
+          assignmentId,
+        );
+
+        await returnPistolProvision(
+          assignmentId,
+        );
+
+        setAssignmentsRefreshKey(
+          (current) =>
+            current + 1,
+        );
+
+        await showSuccessAlert(
+          "Provisión devuelta",
+          "La pistola, los 3 cargadores y las 50 municiones 9 mm volvieron al stock.",
+        );
+      } catch (error) {
+        const detailMessage =
+          error.details?.[0]?.message;
+
+        await Swal.fire({
+          icon: "error",
+          title:
+            "No se pudo devolver la provisión",
+          text:
+            detailMessage ||
+            error.message ||
+            "Ocurrió un error durante la devolución.",
+          confirmButtonColor: "#163b65",
+        });
+      } finally {
+        setReturningProvisionId(null);
+      }
     };
 
   const openReturnModal = ({
@@ -892,16 +1146,16 @@ const PersonnelDetailModal = ({
                   {assignmentsError}
                 </p>
               </div>
-            ) : activeEquipment.length ===
-              0 ? (
+            ) : pistolProvisions.length ===
+                0 &&
+              standaloneActiveEquipment.length ===
+                0 ? (
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#163b65] shadow-sm">
                     <Package
                       size={18}
-                      strokeWidth={
-                        1.8
-                      }
+                      strokeWidth={1.8}
                     />
                   </div>
 
@@ -912,17 +1166,179 @@ const PersonnelDetailModal = ({
                     </p>
 
                     <p className="mt-1 text-xs text-slate-500">
-                      No hay
-                      asignaciones
-                      activas
-                      registradas.
+                      No hay asignaciones
+                      activas registradas.
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                {activeEquipment.map(
+              <div className="space-y-4">
+                {pistolProvisions.map(
+                  ({
+                    assignment,
+                    pistolDetail,
+                    magazineDetails,
+                    ammunitionDetails,
+                    magazineQuantity,
+                    ammunitionQuantity,
+                  }) => {
+                    const pistol =
+                      pistolDetail.equipment;
+
+                    return (
+                      <div
+                        key={`pistol-provision-${assignment.id}`}
+                        className="overflow-hidden rounded-xl border border-[#163b65]/15 bg-[#f5f8fb]"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#163b65]/10 px-4 py-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[#163b65] shadow-sm">
+                              <ShieldCheck
+                                size={19}
+                                strokeWidth={1.8}
+                              />
+                            </div>
+
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                Provisión de pistola
+                              </p>
+
+                              <p className="mt-1 text-xs text-slate-500">
+                                Asignada el{" "}
+                                {formatDateTime(
+                                  assignment.assignedAt,
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                              Permanente
+                            </span>
+
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                              En poder del oficial
+                            </span>
+
+                            <button
+                              type="button"
+                              disabled={
+                                returningProvisionId ===
+                                assignment.id
+                              }
+                              onClick={() =>
+                                handleReturnPistolProvision(
+                                  assignment.id,
+                                )
+                              }
+                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-[#163b65]/20 hover:bg-[#edf3f8] hover:text-[#163b65] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <RotateCcw size={14} />
+                              {returningProvisionId ===
+                              assignment.id
+                                ? "Devolviendo..."
+                                : "Devolver provisión"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 p-4">
+                          <div className="rounded-lg border border-slate-100 bg-white p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                  Pistola
+                                </p>
+
+                                <p className="mt-1 text-sm font-semibold text-slate-900">
+                                  {getEquipmentName(
+                                    pistol,
+                                  )}
+                                </p>
+
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {getEquipmentIdentification(
+                                    pistol,
+                                  )}
+                                </p>
+
+                                {pistol.inventoryNumber &&
+                                  pistol.serialNumber && (
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      Inventario:{" "}
+                                      {
+                                        pistol.inventoryNumber
+                                      }
+                                    </p>
+                                  )}
+                              </div>
+
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="rounded-lg border border-slate-100 bg-white p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                    Cargadores
+                                  </p>
+
+                                  <p className="mt-1 text-lg font-semibold text-slate-900">
+                                    {magazineQuantity}
+                                  </p>
+
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Dotación asignada
+                                  </p>
+                                </div>
+
+                              </div>
+                            </div>
+
+                            <div className="rounded-lg border border-slate-100 bg-white p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                    Municiones 9 mm
+                                  </p>
+
+                                  <p className="mt-1 text-lg font-semibold text-slate-900">
+                                    {ammunitionQuantity}
+                                  </p>
+
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Dotación asignada
+                                  </p>
+                                </div>
+
+                              </div>
+                            </div>
+                          </div>
+
+                          {assignment.observations && (
+                            <div className="rounded-lg border border-slate-100 bg-white p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                Observaciones de la provisión
+                              </p>
+
+                              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                                {
+                                  assignment.observations
+                                }
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  },
+                )}
+
+                {standaloneActiveEquipment.map(
                   ({
                     equipment,
                     quantity,
@@ -980,12 +1396,8 @@ const PersonnelDetailModal = ({
                         <div className="flex items-start gap-3">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[#163b65] shadow-sm">
                             <Package
-                              size={
-                                19
-                              }
-                              strokeWidth={
-                                1.8
-                              }
+                              size={19}
+                              strokeWidth={1.8}
                             />
                           </div>
 
@@ -1038,11 +1450,8 @@ const PersonnelDetailModal = ({
                             {trackingMode ===
                               "INDIVIDUAL" && (
                               <p className="mt-2 text-xs text-slate-500">
-                                Cantidad
-                                asignada:{" "}
-                                {
-                                  quantity
-                                }
+                                Cantidad asignada:{" "}
+                                {quantity}
                               </p>
                             )}
 

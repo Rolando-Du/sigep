@@ -12,6 +12,8 @@ import {
   X,
 } from "lucide-react";
 
+import Swal from "sweetalert2";
+
 import PersonnelFormModal from "../components/personnel/PersonnelFormModal";
 import PersonnelDetailModal from "../components/personnel/PersonnelDetailModal";
 
@@ -71,6 +73,22 @@ const getFormErrors = (details = []) =>
 const selectClasses =
   "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 outline-none transition focus:border-[#7394b2] focus:ring-4 focus:ring-[#163b65]/5";
 
+const showSuccessAlert = (title, text) =>
+  Swal.fire({
+    icon: "success",
+    title,
+    text,
+    confirmButtonColor: "#163b65",
+  });
+
+const showErrorAlert = (title, text) =>
+  Swal.fire({
+    icon: "error",
+    title,
+    text,
+    confirmButtonColor: "#163b65",
+  });
+
 const Personnel = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -83,7 +101,6 @@ const Personnel = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [errorMessage, setErrorMessage] = useState("");
   const [formErrors, setFormErrors] = useState({});
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -95,8 +112,6 @@ const Personnel = () => {
     const loadPersonnel = async () => {
       try {
         setIsLoading(true);
-        setErrorMessage("");
-
         const data = await getPersonnel();
 
         setPersonnel(
@@ -110,9 +125,10 @@ const Personnel = () => {
           error,
         );
 
-        setErrorMessage(
+        await showErrorAlert(
+          "No se pudo cargar el personal",
           error.message ||
-            "No se pudo cargar el personal",
+            "Verificá que el servidor esté disponible.",
         );
       } finally {
         setIsLoading(false);
@@ -125,7 +141,6 @@ const Personnel = () => {
   const handleNewPersonnel = () => {
     setEditingPerson(null);
     setFormErrors({});
-    setErrorMessage("");
     setIsModalOpen(true);
   };
 
@@ -133,20 +148,13 @@ const Personnel = () => {
     setSelectedPerson(null);
     setEditingPerson(person);
     setFormErrors({});
-    setErrorMessage("");
     setIsModalOpen(true);
   };
 
   const handleSavePersonnel = async (personData) => {
     setFormErrors({});
-    setErrorMessage("");
 
-    /*
-     * EDICIÓN
-     *
-     * Se actualiza realmente
-     * en PostgreSQL.
-     */
+    // EDICIÓN
     if (editingPerson) {
       try {
         setIsSaving(true);
@@ -168,6 +176,11 @@ const Personnel = () => {
         setEditingPerson(null);
         setFormErrors({});
         setIsModalOpen(false);
+
+        await showSuccessAlert(
+          "Personal actualizado",
+          "Los cambios se guardaron correctamente.",
+        );
       } catch (error) {
         console.error(
           "Error al actualizar personal:",
@@ -179,7 +192,8 @@ const Personnel = () => {
             getFormErrors(error.details),
           );
         } else {
-          setErrorMessage(
+          await showErrorAlert(
+            "No se pudo actualizar",
             error.message ||
               "No se pudo actualizar el personal",
           );
@@ -191,12 +205,7 @@ const Personnel = () => {
       return;
     }
 
-    /*
-     * NUEVO PERSONAL
-     *
-     * Se guarda realmente
-     * en PostgreSQL.
-     */
+    // NUEVO PERSONAL
     try {
       setIsSaving(true);
 
@@ -210,6 +219,11 @@ const Personnel = () => {
 
       setFormErrors({});
       setIsModalOpen(false);
+
+      await showSuccessAlert(
+        "Personal registrado",
+        "El personal se guardó correctamente.",
+      );
     } catch (error) {
       console.error(
         "Error al crear personal:",
@@ -221,7 +235,8 @@ const Personnel = () => {
           getFormErrors(error.details),
         );
       } else {
-        setErrorMessage(
+        await showErrorAlert(
+          "No se pudo registrar",
           error.message ||
             "No se pudo crear el personal",
         );
@@ -336,23 +351,6 @@ const Personnel = () => {
         </button>
       </div>
 
-      {/* ERROR GENERAL */}
-      {errorMessage && (
-        <div className="mb-6 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm text-red-700">
-            {errorMessage}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setErrorMessage("")}
-            className="shrink-0 text-red-400 transition hover:text-red-700"
-            aria-label="Cerrar mensaje"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      )}
 
       {/* BUSCADOR Y FILTROS */}
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
