@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs";
+
 import prisma from "../src/lib/prisma.js";
 
 const equipmentTypes = [
@@ -74,7 +76,7 @@ const equipmentTypes = [
   },
 ];
 
-const main = async () => {
+const seedEquipmentTypes = async () => {
   for (const type of equipmentTypes) {
     await prisma.equipmentType.upsert({
       where: {
@@ -84,15 +86,75 @@ const main = async () => {
       create: type,
     });
   }
+};
+
+const seedAdmin = async () => {
+  const existingAdmin =
+    await prisma.user.findFirst({
+      where: {
+        role: "ADMIN",
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+  if (existingAdmin) {
+    console.log(
+      `Seed SIGEP: ADMIN existente (${existingAdmin.username}), sin cambios.`,
+    );
+
+    return;
+  }
+
+  const username =
+    process.env.ADMIN_USERNAME;
+
+  const password =
+    process.env.ADMIN_PASSWORD;
+
+  if (!username || !password) {
+    throw new Error(
+      "ADMIN_USERNAME y ADMIN_PASSWORD deben estar configurados para crear el administrador inicial",
+    );
+  }
+
+  const passwordHash =
+    await bcrypt.hash(
+      password,
+      12,
+    );
+
+  await prisma.user.create({
+    data: {
+      username: username.trim(),
+      passwordHash,
+      role: "ADMIN",
+      isActive: true,
+    },
+  });
 
   console.log(
-    "Seed SIGEP: tipos de equipamiento sincronizados.",
+    `Seed SIGEP: ADMIN inicial creado (${username.trim()}).`,
+  );
+};
+
+const main = async () => {
+  await seedEquipmentTypes();
+  await seedAdmin();
+
+  console.log(
+    "Seed SIGEP finalizado correctamente.",
   );
 };
 
 main()
   .catch((error) => {
-    console.error("Error ejecutando seed:", error);
+    console.error(
+      "Error ejecutando seed:",
+      error,
+    );
+
     process.exitCode = 1;
   })
   .finally(async () => {

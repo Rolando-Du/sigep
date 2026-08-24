@@ -1,7 +1,17 @@
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:4000";
+import {
+  getToken,
+} from "./auth.service";
 
-const PERSONNEL_URL = `${API_URL}/api/v1/personnel`;
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:4000";
+
+const PERSONNEL_URL =
+  `${API_URL}/api/v1/personnel`;
+
+const getAuthHeaders = () => ({
+  Authorization: `Bearer ${getToken()}`,
+});
 
 const handleResponse = async (
   response,
@@ -11,11 +21,13 @@ const handleResponse = async (
 
   if (!response.ok) {
     const error = new Error(
-      result?.error?.message || fallbackMessage,
+      result?.error?.message ||
+        fallbackMessage,
     );
 
     error.status = response.status;
-    error.details = result?.error?.details || [];
+    error.details =
+      result?.error?.details || [];
 
     throw error;
   }
@@ -23,8 +35,16 @@ const handleResponse = async (
   return result.data;
 };
 
+// OBTENER PERSONAL
 export const getPersonnel = async () => {
-  const response = await fetch(PERSONNEL_URL);
+  const response = await fetch(
+    PERSONNEL_URL,
+    {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
+  );
 
   return handleResponse(
     response,
@@ -32,16 +52,22 @@ export const getPersonnel = async () => {
   );
 };
 
-export const createPersonnel = async (personData) => {
-  const response = await fetch(PERSONNEL_URL, {
-    method: "POST",
-
-    headers: {
-      "Content-Type": "application/json",
+// CREAR PERSONAL
+export const createPersonnel = async (
+  personData,
+) => {
+  const response = await fetch(
+    PERSONNEL_URL,
+    {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify(personData),
     },
-
-    body: JSON.stringify(personData),
-  });
+  );
 
   return handleResponse(
     response,
@@ -49,6 +75,7 @@ export const createPersonnel = async (personData) => {
   );
 };
 
+// ACTUALIZAR PERSONAL
 export const updatePersonnel = async (
   id,
   personData,
@@ -57,11 +84,11 @@ export const updatePersonnel = async (
     `${PERSONNEL_URL}/${id}`,
     {
       method: "PUT",
-
       headers: {
-        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+        "Content-Type":
+          "application/json",
       },
-
       body: JSON.stringify(personData),
     },
   );

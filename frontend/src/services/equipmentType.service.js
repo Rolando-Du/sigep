@@ -1,9 +1,17 @@
+import {
+  getToken,
+} from "./auth.service";
+
 const API_URL =
   import.meta.env.VITE_API_URL ||
   "http://localhost:4000";
 
 const EQUIPMENT_TYPES_URL =
   `${API_URL}/api/v1/equipment-types`;
+
+const getAuthHeaders = () => ({
+  Authorization: `Bearer ${getToken()}`,
+});
 
 const handleResponse = async (
   response,
@@ -22,8 +30,7 @@ const handleResponse = async (
       response.status;
 
     error.details =
-      result?.error?.details ||
-      [];
+      result?.error?.details || [];
 
     throw error;
   }
@@ -31,12 +38,17 @@ const handleResponse = async (
   return result.data;
 };
 
+// OBTENER TIPOS
 export const getEquipmentTypes =
   async () => {
-    const response =
-      await fetch(
-        EQUIPMENT_TYPES_URL,
-      );
+    const response = await fetch(
+      EQUIPMENT_TYPES_URL,
+      {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      },
+    );
 
     return handleResponse(
       response,
@@ -44,26 +56,27 @@ export const getEquipmentTypes =
     );
   };
 
+// CREAR TIPO
 export const createEquipmentType =
   async (
     equipmentTypeData,
   ) => {
-    const response =
-      await fetch(
-        EQUIPMENT_TYPES_URL,
-        {
-          method: "POST",
+    const response = await fetch(
+      EQUIPMENT_TYPES_URL,
+      {
+        method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify(
-            equipmentTypeData,
-          ),
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type":
+            "application/json",
         },
-      );
+
+        body: JSON.stringify(
+          equipmentTypeData,
+        ),
+      },
+    );
 
     return handleResponse(
       response,

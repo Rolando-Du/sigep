@@ -1,9 +1,18 @@
+// ASIGNACIONES
+import {
+  getToken,
+} from "./auth.service";
+
 const API_URL =
   import.meta.env.VITE_API_URL ||
   "http://localhost:4000";
 
 const ASSIGNMENTS_URL =
   `${API_URL}/api/v1/assignments`;
+
+const getAuthHeaders = () => ({
+  Authorization: `Bearer ${getToken()}`,
+});
 
 const handleResponse = async (
   response,
@@ -32,6 +41,11 @@ export const getAssignments =
   async () => {
     const response = await fetch(
       ASSIGNMENTS_URL,
+      {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      },
     );
 
     return handleResponse(
@@ -45,6 +59,11 @@ export const getPersonnelAssignments =
   async (personnelId) => {
     const response = await fetch(
       `${ASSIGNMENTS_URL}/personnel/${personnelId}`,
+      {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      },
     );
 
     return handleResponse(
@@ -61,6 +80,7 @@ export const createAssignment =
       {
         method: "POST",
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },
@@ -88,6 +108,7 @@ export const returnAssignmentDetail =
       {
         method: "POST",
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },
@@ -111,6 +132,7 @@ export const returnPistolProvision =
       {
         method: "POST",
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },

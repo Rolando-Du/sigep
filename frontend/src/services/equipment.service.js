@@ -1,9 +1,17 @@
+import {
+  getToken,
+} from "./auth.service";
+
 const API_URL =
   import.meta.env.VITE_API_URL ||
   "http://localhost:4000";
 
 const EQUIPMENT_URL =
   `${API_URL}/api/v1/equipment`;
+
+const getAuthHeaders = () => ({
+  Authorization: `Bearer ${getToken()}`,
+});
 
 const handleResponse = async (
   response,
@@ -30,10 +38,16 @@ const handleResponse = async (
   return result.data;
 };
 
+// OBTENER EQUIPAMIENTO
 export const getEquipment =
   async () => {
     const response = await fetch(
       EQUIPMENT_URL,
+      {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      },
     );
 
     return handleResponse(
@@ -42,6 +56,7 @@ export const getEquipment =
     );
   };
 
+// CREAR EQUIPAMIENTO
 export const createEquipment =
   async (equipmentData) => {
     const response = await fetch(
@@ -50,6 +65,7 @@ export const createEquipment =
         method: "POST",
 
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },
@@ -66,9 +82,7 @@ export const createEquipment =
     );
   };
 
-/*
- * Actualizar equipamiento existente.
- */
+// ACTUALIZAR EQUIPAMIENTO
 export const updateEquipment =
   async (
     equipmentId,
@@ -80,6 +94,7 @@ export const updateEquipment =
         method: "PUT",
 
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },
