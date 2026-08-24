@@ -1,0 +1,364 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EquipmentTrackingMode {
+  INDIVIDUAL
+  QUANTITY
+}
+
+enum EquipmentStatus {
+  DISPONIBLE
+  ASIGNADO
+  EN_CUSTODIA
+  EN_REPARACION
+  FUERA_DE_SERVICIO
+  BAJA
+}
+
+//
+// Categoría general del equipamiento.
+//
+// ARMAMENTO:
+// Pistolas, escopetas, fusiles, etc.
+//
+// PROTECCION:
+// Chalecos y otros elementos de protección.
+//
+// COMUNICACIONES:
+// Radios y equipos de comunicación.
+//
+// MUNICION:
+// Municiones y cartuchería.
+//
+// ACCESORIO:
+// Cargadores y otros accesorios.
+//
+// OTRO:
+// Equipamiento que no pertenece
+// a las categorías anteriores.
+//
+enum EquipmentCategory {
+  ARMAMENTO
+  PROTECCION
+  COMUNICACIONES
+  MUNICION
+  ACCESORIO
+  OTRO
+}
+
+//
+// Tipo logístico de asignación.
+//
+// PERMANENT:
+// El equipamiento está asignado al personal
+// y permanece físicamente en poder del oficial.
+//
+// TEMPORARY:
+// El equipamiento está asignado al personal,
+// pero permanece resguardado en Sala de Armas
+// cuando no está siendo utilizado.
+//
+enum AssignmentType {
+  PERMANENT
+  TEMPORARY
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  RETURNED
+  CANCELLED
+}
+
+model Personnel {
+  id Int @id @default(autoincrement())
+
+  firstName String
+  lastName  String
+
+  dni        String @unique
+  fileNumber String @unique
+
+  rank      String
+  bloodType String?
+
+  phone String?
+  email String?
+
+  // Campo anterior conservado temporalmente.
+  addressLegacy String? @map("address")
+
+  addressStreet   String?
+  addressDetail   String?
+  addressCity     String?
+  addressProvince String?
+
+  status String @default("Activo")
+
+  unit        String
+  primaryArea String
+
+  additionalAreas String[] @default([])
+
+  dutyFunction String?
+  observations String?
+
+  assignments Assignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lastName])
+  @@index([status])
+  @@index([rank])
+  @@index([primaryArea])
+  @@map("personnel")
+}
+
+model EquipmentType {
+  id Int @id @default(autoincrement())
+
+  //
+  // Tipo específico.
+  //
+  // Ejemplos:
+  // Pistola
+  // Escopeta
+  // Chaleco Balístico
+  // HT
+  // Cargador
+  // Munición 9 mm
+  // Munición calibre 12
+  // Munición calibre 12 - Posta de goma
+  //
+  name String @unique
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  //
+  // Categoría general.
+  //
+  // Pistola  -> ARMAMENTO
+  // Escopeta -> ARMAMENTO
+  // HT       -> COMUNICACIONES
+  // Munición -> MUNICION
+  //
+  category EquipmentCategory @default(OTRO)
+
+  //
+  // INDIVIDUAL:
+  // se identifica cada unidad.
+  //
+  // QUANTITY:
+  // se administra como stock.
+  //
+  trackingMode EquipmentTrackingMode @default(INDIVIDUAL)
+
+  //
+  // Indica si el elemento puede
+  // consumirse durante una asignación.
+  //
+  // true:
+  // Munición 9 mm
+  // Munición calibre 12
+  // Postas de goma
+  //
+  // false:
+  // HT
+  // Cargadores
+  // Pistolas
+  // Escopetas
+  // Chalecos
+  //
+  // IMPORTANTE:
+  // QUANTITY no significa necesariamente
+  // que el elemento sea consumible.
+  //
+  // Ejemplo:
+  // HT -> QUANTITY pero NO consumible.
+  //
+  isConsumable Boolean @default(false)
+
+  //
+  // Modalidad logística predeterminada.
+  //
+  // Pistola:
+  // PERMANENT
+  //
+  // Escopeta:
+  // TEMPORARY
+  //
+  // HT:
+  // TEMPORARY
+  //
+  // Para elementos auxiliares como
+  // cargadores o municiones puede
+  // quedar null, ya que acompañan
+  // a la asignación principal.
+  //
+  defaultAssignmentType AssignmentType?
+
+  equipment Equipment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([isActive])
+  @@index([category])
+  @@index([trackingMode])
+  @@index([isConsumable])
+  @@index([defaultAssignmentType])
+  @@map("equipment_types")
+}
+
+model Equipment {
+  id Int @id @default(autoincrement())
+
+  typeId Int
+  type   EquipmentType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  inventoryNumber String? @unique
+  serialNumber    String? @unique
+
+  brand String?
+  model String?
+
+  //
+  // Estado administrativo/operativo.
+  //
+  // DISPONIBLE:
+  // puede ser asignado.
+  //
+  // ASIGNADO:
+  // pertenece actualmente a una
+  // asignación activa.
+  //
+  status EquipmentStatus @default(DISPONIBLE)
+
+  totalQuantity     Int @default(1)
+  availableQuantity Int @default(1)
+
+  observations String?
+
+  assignmentDetails AssignmentDetail[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([typeId])
+  @@index([status])
+  @@map("equipment")
+}
+
+model Assignment {
+  id Int @id @default(autoincrement())
+
+  personnelId Int
+  personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Restrict)
+
+  //
+  // PERMANENT:
+  // El equipamiento permanece
+  // en poder del oficial.
+  //
+  // TEMPORARY:
+  // El equipamiento está asignado
+  // al oficial pero se resguarda
+  // en Sala de Armas.
+  //
+  type AssignmentType
+
+  status AssignmentStatus @default(ACTIVE)
+
+  //
+  // Fecha en que comenzó
+  // la asignación.
+  //
+  assignedAt DateTime @default(now())
+
+  //
+  // Solo se completa cuando
+  // existe cierre o devolución
+  // definitiva de toda la asignación.
+  //
+  returnedAt DateTime?
+
+  observations String?
+
+  details AssignmentDetail[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([personnelId])
+  @@index([status])
+  @@index([type])
+  @@index([assignedAt])
+  @@map("assignments")
+}
+
+model AssignmentDetail {
+  id Int @id @default(autoincrement())
+
+  assignmentId Int
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+
+  equipmentId Int
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  //
+  // Cantidad originalmente asignada.
+  //
+  quantity Int @default(1)
+
+  //
+  // Cantidad devuelta físicamente
+  // y reincorporada al stock.
+  //
+  // INDIVIDUAL:
+  // normalmente será 0 o 1.
+  //
+  // QUANTITY no consumible:
+  // puede permitir devolución parcial.
+  //
+  // MUNICIÓN consumible:
+  // representa únicamente las unidades
+  // devueltas SIN USO.
+  //
+  returnedQuantity Int @default(0)
+
+  //
+  // Cantidad utilizada o consumida.
+  //
+  // Se utiliza principalmente para
+  // elementos marcados como:
+  //
+  // isConsumable = true
+  //
+  // Ejemplo:
+  //
+  // 15 postas de goma asignadas
+  // 3 devueltas sin uso
+  // 12 utilizadas
+  //
+  // quantity         = 15
+  // returnedQuantity = 3
+  // consumedQuantity = 12
+  //
+  consumedQuantity Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignmentId])
+  @@index([equipmentId])
+  @@map("assignment_details")
+}
