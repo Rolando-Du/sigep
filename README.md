@@ -1,1146 +1,858 @@
 
-SIGEP
+# SIGEP
 
-Sistema Integral de Gestión de Equipamiento y Personal
+**Sistema Integral de Gestión de Equipamiento y Personal**
 
-Versión: 1.0
-Estado: Definición funcional inicial
-Organización: Policía de Seguridad Aeroportuaria
-Tipo de solución: Aplicación web interna
-Documento: Especificación funcional y de experiencia de usuario
+SIGEP es una aplicación web orientada a la gestión logística de personal, equipamiento, stock y asignaciones. Permite administrar el personal registrado, controlar equipamiento individual y por cantidad, gestionar provisiones y devoluciones, consultar movimientos y operar el sistema mediante autenticación segura con usuario administrador.
 
-1. Propósito del documento
+Repositorio:
 
-Este documento define la visión funcional inicial de SIGEP — Sistema Integral de Gestión de Equipamiento y Personal.
+`<span>https://github.com/Rolando-Du/sigep</span>`
 
-Su objetivo es establecer qué problema resolverá el sistema, cuáles serán sus módulos principales, cómo deberá comportarse la interfaz y qué criterios deberán respetarse durante el desarrollo.
+---
 
-Este documento debe mantenerse separado del README.md.
+## Características principales
 
-El README.md estará orientado a:
+### Gestión de personal
 
-instalación;
+* Alta y actualización de personal.
+* Consulta y búsqueda de registros.
+* Visualización del equipamiento asignado.
+* Estados de personal configurados en el sistema:
+  * Activo
+  * LEF
+  * LAO
+  * ETB
+  * ETP
+  * LAP
+  * LES
+  * LPM
+  * LPL
 
-ejecución;
+### Gestión de equipamiento
 
-comandos;
+SIGEP permite administrar equipamiento mediante dos formas de control:
 
-configuración del proyecto;
+* **INDIVIDUAL** : cada unidad posee identificación propia, por ejemplo número de serie.
+* **QUANTITY** : el equipamiento se administra por cantidad y stock disponible.
 
-variables de entorno;
+Categorías disponibles:
 
-dependencias;
+* ARMAMENTO
+* PROTECCION
+* COMUNICACIONES
+* MUNICION
+* ACCESORIO
+* OTRO
 
-despliegue.
+Estados de equipamiento:
 
-Este documento estará orientado a:
+* DISPONIBLE
+* ASIGNADO
+* EN_CUSTODIA
+* EN_REPARACION
+* FUERA_DE_SERVICIO
+* BAJA
 
-alcance funcional;
+### Modelo logístico de asignaciones
 
-comportamiento esperado;
+Actualmente solo se asignan directamente al personal:
 
-experiencia de usuario;
+| Tipo               | Modalidad  |
+| ------------------ | ---------- |
+| Pistola            | Permanente |
+| Chaleco Balístico | Temporaria |
 
-reglas de negocio;
+El resto del equipamiento se administra como  **stock general** .
 
-módulos;
+#### Provisión de pistola
 
-roles;
+La provisión de una pistola se registra de forma conjunta:
 
-criterios de diseño.
+* 1 pistola.
+* 3 cargadores.
+* 50 municiones calibre 9 mm.
 
-Ubicación sugerida:
+Al registrar la asignación:
 
+* La pistola queda asociada al personal.
+* Se descuentan automáticamente 3 cargadores del stock.
+* Se descuentan automáticamente 50 municiones 9 mm del stock.
+
+La devolución de la provisión también se realiza de manera conjunta:
+
+* pistola;
+* 3 cargadores;
+* 50 municiones 9 mm.
+
+### Equipamiento de stock general
+
+Actualmente se administra como stock general:
+
+* Escopeta.
+* HT.
+* Cargador.
+* Munición 9 mm.
+* Munición calibre 12.
+* Munición calibre 12 - Posta de goma.
+
+El chaleco balístico conserva modalidad **TEMPORARY** porque se necesita identificar qué chaleco individual corresponde a cada integrante del personal.
+
+---
+
+## Autenticación y seguridad
+
+SIGEP posee autenticación mediante:
+
+* usuario y contraseña;
+* contraseñas almacenadas con `<span>bcryptjs</span>`;
+* tokens JWT;
+* rutas privadas protegidas;
+* expiración configurable del token;
+* cierre de sesión;
+* pantalla  **Mi cuenta** .
+
+El usuario administrador puede desde la interfaz:
+
+* cambiar su nombre de usuario;
+* cambiar su contraseña;
+* confirmar los cambios ingresando la contraseña actual.
+
+Cuando se modifica la contraseña, la sesión se cierra y se requiere iniciar sesión nuevamente.
+
+El seed inicial crea un usuario ADMIN únicamente si no existe previamente un administrador. Si ya existe uno, no modifica su usuario ni su contraseña.
+
+---
+
+## Movimientos
+
+La sección **Movimientos** muestra el historial reconstruido a partir de las asignaciones y devoluciones registradas.
+
+Permite:
+
+* visualizar asignaciones permanentes;
+* visualizar asignaciones temporarias;
+* visualizar devoluciones;
+* buscar por personal o equipamiento;
+* filtrar asignaciones y devoluciones;
+* imprimir el historial;
+* descargar el historial en PDF.
+
+La generación de PDF utiliza:
+
+* `<span>jspdf</span>`;
+* `<span>jspdf-autotable</span>`.
+
+> Actualmente esta sección representa el historial logístico de asignaciones y devoluciones. No debe considerarse todavía un módulo de auditoría completa de todas las acciones realizadas dentro del sistema.
+
+---
+
+## Tecnologías
+
+### Frontend
+
+* React
+* Vite
+* Tailwind CSS
+* React Router
+* Lucide React
+* SweetAlert2
+* jsPDF
+* jsPDF AutoTable
+
+### Backend
+
+* Node.js
+* Express
+* ES Modules
+* PostgreSQL
+* Prisma ORM
+* `<span>@prisma/adapter-pg</span>`
+* Zod
+* bcryptjs
+* jsonwebtoken
+* Helmet
+* CORS
+* Morgan
+* dotenv
+
+### Herramientas
+
+* pnpm Workspaces
+* Prisma migrations
+* Prisma seed
+* Oxlint
+* Git
+* GitHub
+
+---
+
+## Estructura del proyecto
+
+```
 sigep/
-├── docs/
-│   └── SIGEP-Documento-Funcional.md
 ├── frontend/
-├── server/
-├── pnpm-workspace.yaml
-├── package.json
-└── README.md
-
-2. Visión general
-
-SIGEP será una aplicación web interna destinada a centralizar y simplificar la gestión de información relacionada con personal y equipamiento.
-
-Permitirá consultar rápidamente:
-
-datos principales del personal;
-
-equipamiento asignado;
-
-disponibilidad de elementos;
-
-responsable actual de un elemento;
-
-historial de asignaciones y devoluciones;
-
-movimientos recientes;
-
-modificaciones realizadas.
-
-SIGEP deberá priorizar simplicidad, velocidad, claridad, trazabilidad y seguridad.
-
-3. Principios del producto
-
-3.1 Simplicidad
-
-Cada pantalla mostrará solamente la información necesaria para la tarea actual.
-
-Se evitarán:
-
-menús excesivos;
-
-tarjetas innecesarias;
-
-gráficos decorativos;
-
-formularios demasiado extensos;
-
-información duplicada;
-
-funciones sin utilización concreta.
-
-3.2 Rapidez
-
-Las operaciones habituales deberán resolverse en pocos pasos.
-
-Buscar persona
-→ Abrir ficha
-→ Ver equipamiento
-
-3.3 Claridad
-
-Se utilizarán nombres simples:
-
-Personal
-Equipamiento
-Asignaciones
-Movimientos
-
-3.4 Trazabilidad
-
-Toda operación relevante deberá indicar:
-
-quién la realizó;
-
-cuándo;
-
-qué registro fue afectado;
-
-valor anterior;
-
-valor nuevo.
-
-3.5 Escalabilidad
-
-El sistema comenzará con aproximadamente 30 personas, pero deberá poder crecer sin rehacer su estructura.
-
-4. Alcance funcional inicial
-
-La primera versión estará basada en:
-
-Inicio
-Personal
-Equipamiento
-Asignaciones
-Movimientos
-Administración
-
-No se agregarán módulos adicionales sin una necesidad real.
-
-5. Inicio
-
-La pantalla inicial será un resumen operativo y simple.
-
-Ejemplo:
-
-Personal registrado
-30
-
-Equipamiento asignado
-84
-
-Elementos disponibles
-12
-
-Movimientos recientes
-8
-
-También mostrará movimientos recientes y un buscador global:
-
-Buscar persona, DNI, legajo o elemento...
-
-6. Módulo Personal
-
-6.1 Listado
-
-PERSONAL
-
-[ Buscar personal... ]                    [ + Nuevo ]
-
-Grado       Nombre y apellido      Legajo       Estado
-------------------------------------------------------
-
-Sargento    Juan Pérez             1523         Activo
-Cabo        Pedro Gómez            1845         Activo
-
-6.2 Búsqueda
-
-Se podrá buscar por:
-
-nombre;
-
-apellido;
-
-DNI;
-
-número de legajo.
-
-6.3 Filtros
-
-Inicialmente:
-
-estado;
-
-grado.
-
-Los filtros avanzados permanecerán ocultos mientras no se utilicen.
-
-7. Ficha de personal
-
-Cada integrante tendrá una ficha individual.
-
-SARGENTO
-
-JUAN PÉREZ
-
-Legajo 1523
-Activo
-
-[ Editar ]
-
-Datos personales
-
-Nombre
-
-Apellido
-
-DNI
-
-Grupo sanguíneo
-
-Datos institucionales
-
-Grado
-
-Número de legajo
-
-Destino / dependencia
-
-Estado
-
-Equipamiento asignado
-
-Armamento
-ARM-023
-
-Chaleco
-CH-018
-
-Radio
-RAD-011
-
-Información adicional
-
-Campos configurables según futuras necesidades.
-
-Observaciones
-
-Campo libre para observaciones administrativas pertinentes.
-
-8. Alta y edición de personal
-
-Campos obligatorios
-
-Nombre
-
-Apellido
-
-DNI
-
-Grado
-
-Número de legajo
-
-Campos complementarios
-
-Grupo sanguíneo
-
-Destino / dependencia
-
-Observaciones
-
-Campos personalizados
-
-Una persona podrá existir en SIGEP sin equipamiento asignado.
-
-9. Estados del personal
-
-Inicialmente:
-
-ACTIVO
-INACTIVO
-
-No se eliminarán registros durante el uso normal. Se utilizará el estado INACTIVO para conservar historial.
-
-10. Módulo Equipamiento
-
-EQUIPAMIENTO
-
-[ Buscar elemento... ]                [ + Nuevo elemento ]
-
-Tipo          Identificación       Estado
-------------------------------------------
-
-Armamento     ARM-023              Asignado
-Chaleco       CH-018               Asignado
-Radio         RAD-011              Disponible
-Casco         CAS-005              Disponible
-
-11. Tipos de equipamiento
-
-Inicialmente:
-
-armamento;
-
-chaleco;
-
-radio;
-
-casco;
-
-cargadores;
-
-otros elementos logísticos.
-
-Desde Administración se podrán crear nuevos tipos sin modificar código.
-
-12. Ficha de equipamiento
-
-CHALECO
-
-CH-018
-
-Estado
-ASIGNADO
-
-Asignado actualmente a
-Juan Pérez
-
-Fecha de asignación
-19/08/2026
-
-También mostrará historial.
-
-13. Estados del equipamiento
-
-DISPONIBLE
-ASIGNADO
-EN REPARACIÓN
-FUERA DE SERVICIO
-BAJA
-
-14. Asignaciones
-
-Una asignación vincula una persona con un elemento.
-
-NUEVA ASIGNACIÓN
-
-Persona
-Juan Pérez
-
-Elemento
-Chaleco CH-018
-
-Fecha
-19/08/2026
-
-Observaciones
-Opcional
-
-[ Confirmar asignación ]
-
-Regla principal:
-
-Un mismo elemento físico no podrá estar asignado simultáneamente a dos personas.
-
-15. Devoluciones
-
-Desde la ficha de una persona o elemento deberá existir:
-
-[ Registrar devolución ]
-
-Se registrará:
-
-persona;
-
-elemento;
-
-fecha;
-
-usuario;
-
-observaciones opcionales.
-
-Por defecto, luego de la devolución el elemento volverá a DISPONIBLE.
-
-16. Movimientos
-
-SIGEP conservará el historial.
-
-MOVIMIENTOS
-
-Fecha       Persona        Elemento     Movimiento
---------------------------------------------------
-
-19/08/26    Juan Pérez     CH-018       Asignación
-18/08/26    Pedro Gómez    RAD-011      Devolución
-17/08/26    Juan Pérez     ARM-023      Asignación
-
-Los movimientos no deberán poder editarse libremente.
-
-17. Campos personalizados
-
-Desde:
-
-Administración
-→ Campos personalizados
-
-un administrador podrá crear campos adicionales.
-
-Tipos iniciales:
-
-Texto
-Número
-Fecha
-Sí / No
-Lista de opciones
-
-Ejemplos:
-
-talle de uniforme;
-
-talle de calzado;
-
-fecha de vencimiento;
-
-dependencia;
-
-número interno.
-
-18. Importación inicial desde Excel
-
-Para evitar cargar manualmente el personal inicial, SIGEP permitirá importar un archivo Excel.
-
-Formato sugerido:
-
-Nombre
-Apellido
-DNI
-Grado
-Legajo
-Grupo sanguíneo
-
-Antes de importar deberá validar los datos.
-
-Ejemplo:
-
-Archivo analizado
-
-28 registros correctos
-2 registros con observaciones
-
-Posibles errores:
-
-Fila 7
-DNI duplicado
-
-Fila 14
-Legajo ya existente
-
-La importación deberá requerir confirmación.
-
-19. Exportación
-
-Inicialmente se permitirá exportar a:
-
-Excel
-
-PDF se evaluará cuando exista una necesidad concreta.
-
-20. Usuarios y roles
-
-SIGEP será una aplicación privada.
-
-No existirá registro público.
-
-ADMINISTRADOR
-
-Puede:
-
-gestionar usuarios;
-
-crear y modificar personal;
-
-gestionar equipamiento;
-
-realizar asignaciones;
-
-registrar devoluciones;
-
-configurar campos;
-
-consultar auditoría.
-
-OPERADOR
-
-Puede:
-
-consultar personal;
-
-crear y modificar personal;
-
-gestionar equipamiento;
-
-realizar asignaciones;
-
-registrar devoluciones.
-
-CONSULTA
-
-Puede:
-
-buscar;
-
-visualizar;
-
-consultar historial.
-
-No puede modificar información.
-
-21. Auditoría
-
-SIGEP registrará automáticamente operaciones relevantes.
-
-19/08/2026 14:32
-
-Usuario
-rduarte
-
-Acción
-MODIFICACIÓN DE PERSONAL
-
-Registro
-Juan Pérez
-
-Campo
-Número de legajo
-
-Anterior
-1522
-
-Nuevo
-1523
-
-Se auditarán como mínimo:
-
-altas;
-
-modificaciones;
-
-cambios de estado;
-
-asignaciones;
-
-devoluciones;
-
-cambios de equipamiento;
-
-administración de usuarios.
-
-El historial de auditoría no será editable.
-
-22. Eliminación de información
-
-Como regla general, SIGEP evitará eliminar físicamente datos importantes.
-
-Ejemplos:
-
-Persona
-ACTIVO → INACTIVO
-
-Equipamiento
-DISPONIBLE → BAJA
-
-23. Diseño visual
-
-La interfaz deberá transmitir:
-
-orden;
-
-seriedad;
-
-confianza;
-
-modernidad;
-
-simplicidad.
-
-No deberá tener apariencia excesivamente militar ni comercial.
-
-Se utilizarán:
-
-fondos neutros;
-
-tarjetas simples;
-
-bordes suaves;
-
-tipografía limpia;
-
-espacios generosos;
-
-iconografía limitada;
-
-colores funcionales.
-
-Paleta conceptual:
-
-Azul institucional oscuro
-Grises neutros
-Blanco
-Verde para estados correctos
-Ámbar para advertencias
-Rojo para errores
-
-24. Formularios
-
-Regla general:
-
-Mostrar primero lo necesario y dejar lo opcional en segundo plano.
-
-NUEVA PERSONA
-
-Datos principales
-
-Nombre *
-Apellido *
-DNI *
-Grado *
-Legajo *
-
-Información adicional
-
-Grupo sanguíneo
-Destino
-Observaciones
-
-[ Cancelar ]             [ Guardar ]
-
-25. Confirmaciones
-
-Las operaciones comunes no deberán mostrar confirmaciones innecesarias.
-
-Las acciones sensibles sí deberán confirmarse:
-
-dar de baja;
-
-desactivar usuario;
-
-registrar devolución;
-
-transferir un elemento;
-
-cambiar estados críticos.
-
-26. Buscador global
-
-La búsqueda deberá aceptar, como mínimo:
-
-nombre;
-
-apellido;
-
-DNI;
-
-legajo;
-
-identificación de elemento.
-
-Ejemplo:
-
-1523
-
-Resultado:
-
-Juan Pérez
-Legajo 1523
-
-También:
-
-CH-018
-
-Resultado:
-
-Chaleco CH-018
-Asignado a Juan Pérez
-
-27. Responsive
-
-SIGEP deberá funcionar correctamente en:
-
-escritorio;
-
-notebook;
-
-tablet.
-
-El teléfono podrá utilizarse para consultas rápidas, pero la experiencia principal estará orientada a escritorio.
-
-28. Seguridad funcional
-
-SIGEP deberá contemplar:
-
-autenticación obligatoria;
-
-roles y permisos;
-
-sesiones seguras;
-
-auditoría;
-
-protección de datos sensibles;
-
-conexiones cifradas;
-
-cierre de sesión;
-
-política de contraseñas;
-
-backups.
-
-La implementación técnica se definirá en la documentación de arquitectura.
-
-29. Datos tratados
-
-SIGEP podrá almacenar:
-
-DNI;
-
-número de legajo;
-
-grupo sanguíneo;
-
-identificación de equipamiento;
-
-asignaciones;
-
-movimientos;
-
-observaciones internas.
-
-Por este motivo:
-
-SIGEP no será una aplicación pública.
-
-30. Funcionalidades excluidas del MVP
-
-La primera versión no incluirá:
-
-chat;
-
-mensajería interna;
-
-calendario;
-
-múltiples dashboards;
-
-gráficos complejos;
-
-inteligencia artificial;
-
-mapas;
-
-geolocalización;
-
-notificaciones push;
-
-automatizaciones innecesarias.
-
-31. MVP
-
-Acceso
-
-Login
-
-Logout
-
-Usuarios
-
-Roles
-
-Personal
-
-Listado
-
-Búsqueda
-
-Alta
-
-Edición
-
-Ficha
-
-Activar / desactivar
-
-Equipamiento
-
-Listado
-
-Alta
-
-Edición
-
-Estados
-
-Ficha
-
-Asignaciones
-
-Asignar
-
-Devolver
-
-Consultar asignación actual
-
-Historial
-
-Movimientos
-
-Auditoría básica
-
-Datos
-
-Importación desde Excel
-
-Exportación a Excel
-
-32. Segunda etapa
-
-Luego de estabilizar el MVP podrán evaluarse:
-
-campos personalizados avanzados;
-
-reportes;
-
-filtros adicionales;
-
-códigos QR;
-
-impresión de fichas;
-
-inventario avanzado;
-
-alertas por fecha;
-
-estadísticas;
-
-auditoría avanzada.
-
-33. QR como evolución futura
-
-Un elemento podría tener un código QR.
-
-[ QR ]
-
-CH-018
-
-Al escanearlo:
-
-CHALECO CH-018
-
-Estado
-Asignado
-
-Asignado a
-Juan Pérez
-
-Fecha
-19/08/2026
-
-No será obligatorio en el MVP.
-
-34. Entidades conceptuales
-
-USUARIO
-PERSONAL
-EQUIPAMIENTO
-TIPO DE EQUIPAMIENTO
-ASIGNACIÓN
-MOVIMIENTO
-CAMPO PERSONALIZADO
-AUDITORÍA
-
-Relación principal:
-
-PERSONAL
-   │
-   └──── ASIGNACIONES ──── EQUIPAMIENTO
-                             │
-                             └── TIPO DE EQUIPAMIENTO
-
-35. Validaciones principales
-
-SIGEP deberá prevenir:
-
-DNI duplicado
-Legajo duplicado
-Identificación de elemento duplicada
-Elemento ya asignado
-Campo obligatorio incompleto
-
-Los errores deberán mostrarse en lenguaje claro.
-
-36. Experiencia esperada
-
-El usuario deberá identificar rápidamente:
-
-dónde buscar una persona;
-
-dónde consultar equipamiento;
-
-cómo asignar;
-
-cómo devolver;
-
-dónde consultar movimientos.
-
-El sistema deberá requerir poca capacitación.
-
-37. Identidad
-
-SIGEP
-Sistema Integral de Gestión de Equipamiento y Personal
-
-La interfaz utilizará principalmente la denominación corta SIGEP.
-
-38. Criterio para nuevas funciones
-
-Antes de incorporar una funcionalidad deberá responderse:
-
-¿Esta función resuelve una necesidad real del área?
-
-Si la respuesta es no, no se incorporará.
-
-39. Resultado esperado del MVP
-
-Un usuario autorizado deberá poder:
-
-ingresar;
-
-buscar una persona;
-
-consultar sus datos;
-
-conocer su equipamiento;
-
-buscar un elemento;
-
-saber quién lo tiene;
-
-registrar una asignación;
-
-registrar una devolución;
-
-consultar movimientos anteriores.
-
-40. Base tecnológica acordada
-
-La arquitectura definitiva se documentará posteriormente, pero ya quedan establecidas estas decisiones.
-
-Frontend
-
-React
-Vite
-
-Backend
-
-Node.js
-Express
-
-Base de datos
-
-PostgreSQL
-Prisma ORM
-
-Gestor de paquetes
-
-pnpm
-
-SIGEP utilizará pnpm en lugar de npm.
-
-Motivos:
-
-menor duplicación de dependencias;
-
-mejor uso de espacio en disco;
-
-instalaciones rápidas;
-
-manejo consistente de dependencias;
-
-buen soporte para workspaces;
-
-adecuado para frontend y backend dentro del mismo proyecto.
-
-41. ES Modules
-
-El proyecto utilizará ES Modules.
-
-import express from "express";
-
-No se utilizará CommonJS salvo que una dependencia lo exija.
-
-42. Estructura general prevista
-
-sigep/
-│
-├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── equipment/
+│   │   │   ├── layout/
+│   │   │   └── personnel/
+│   │   ├── pages/
+│   │   │   ├── Account.jsx
+│   │   │   ├── Assignments.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Equipment.jsx
+│   │   │   ├── Login.jsx
+│   │   │   ├── Movements.jsx
+│   │   │   └── Personnel.jsx
+│   │   ├── services/
+│   │   │   ├── assignment.service.js
+│   │   │   ├── auth.service.js
+│   │   │   ├── equipment.service.js
+│   │   │   ├── equipmentType.service.js
+│   │   │   └── personnel.service.js
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   └── package.json
 │
 ├── server/
+│   ├── prisma/
+│   │   ├── migrations/
+│   │   ├── schema.prisma
+│   │   └── seed.js
+│   ├── src/
+│   │   ├── controllers/
+│   │   │   ├── assignment.controller.js
+│   │   │   ├── auth.controller.js
+│   │   │   └── equipmentType.controller.js
+│   │   ├── generated/
+│   │   │   └── prisma/
+│   │   ├── lib/
+│   │   │   └── prisma.js
+│   │   ├── middlewares/
+│   │   │   └── auth.middleware.js
+│   │   ├── routes/
+│   │   │   ├── assignment.routes.js
+│   │   │   ├── auth.routes.js
+│   │   │   ├── equipment.routes.js
+│   │   │   ├── equipmentType.routes.js
+│   │   │   ├── health.routes.js
+│   │   │   └── personnel.routes.js
+│   │   ├── schemas/
+│   │   └── server.js
+│   ├── prisma.config.ts
+│   └── package.json
 │
-├── docs/
-│   └── SIGEP-Documento-Funcional.md
-│
-├── pnpm-workspace.yaml
 ├── package.json
-├── .gitignore
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml
 └── README.md
+```
 
-La estructura se mantendrá simple.
+---
 
-No se utilizarán inicialmente:
+## Requisitos
 
-apps/
-packages/
-services/
-microservices/
+Antes de ejecutar SIGEP es necesario tener instalado:
 
-mientras no exista una necesidad concreta.
+* Node.js 22 o superior recomendado.
+* pnpm.
+* PostgreSQL.
+* Git.
 
-43. Workspace de pnpm
+Comprobar versiones:
 
-Se prevé utilizar:
+```
+node -v
+pnpm -v
+git --version
+psql --version
+```
 
-pnpm-workspace.yaml
+---
 
-Conceptualmente:
+## Instalación
 
-packages:
+Clonar el repositorio:
 
-- "frontend"
-- "server"
+```
+git clone https://github.com/Rolando-Du/sigep.git
+cd sigep
+```
 
-La definición final de scripts se documentará en la etapa técnica.
+Instalar las dependencias del workspace:
 
-44. Separación de documentación
+```
+pnpm install
+```
 
-La documentación podrá organizarse así:
+Si pnpm solicita aprobar scripts de compilación:
 
-docs/
-├── SIGEP-Documento-Funcional.md
-├── SIGEP-Arquitectura.md
-├── SIGEP-Base-de-Datos.md
-└── SIGEP-API.md
+```
+pnpm approve-builds
+```
 
-Inicialmente será obligatorio solamente:
+En la configuración actual pueden estar autorizados:
 
-SIGEP-Documento-Funcional.md
+```
+allowBuilds:
+  '@prisma/engines': true
+  core-js: true
+  esbuild: true
+  prisma: true
+```
 
-45. Próxima etapa
+---
 
-El siguiente documento será:
+## Variables de entorno
 
-SIGEP-Arquitectura.md
+### Backend
 
-Allí se definirá:
+Crear:
 
-arquitectura frontend/backend;
+```
+server/.env
+```
 
-estructura exacta del repositorio;
+Ejemplo:
 
-pnpm workspace;
+```
+PORT=4000
 
-scripts;
+DATABASE_URL="postgresql://USUARIO:CONTRASEÑA@localhost:5432/sigep?schema=public"
 
-modelo de datos;
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=CAMBIAR_POR_UNA_CONTRASEÑA_SEGURA
 
-Prisma;
+JWT_SECRET=CAMBIAR_POR_UNA_CLAVE_SECRETA_SEGURA
+JWT_EXPIRES_IN=8h
+```
 
-PostgreSQL;
+Para generar un `<span>JWT_SECRET</span>` aleatorio:
 
-autenticación;
+```
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
 
-autorización;
+### Frontend
 
-seguridad;
+Crear:
 
-API REST;
+```
+frontend/.env
+```
 
-manejo de errores;
+Ejemplo para desarrollo:
 
-logs;
+```
+VITE_API_URL=http://localhost:4000
+```
 
-auditoría técnica;
+---
 
-ambientes;
+## Base de datos
 
-variables de entorno;
+Crear una base PostgreSQL llamada:
 
-backups;
+```
+sigep
+```
 
-despliegue;
+Luego ejecutar las migraciones:
 
-estrategia de desarrollo.
+```
+pnpm --filter server exec prisma migrate dev
+```
 
-Una vez aprobada la arquitectura comenzará la creación del proyecto.
+Generar Prisma Client:
 
-46. Visión resumida
+```
+pnpm --filter server exec prisma generate
+```
 
-PERSONAL
-    ↓
-EQUIPAMIENTO
-    ↓
-HISTORIAL
+Ejecutar el seed:
 
-SIGEP deberá ser:
+```
+pnpm --filter server exec prisma db seed
+```
 
-moderno;
+El seed:
 
-intuitivo;
+1. sincroniza el catálogo base de tipos de equipamiento;
+2. busca si ya existe un usuario con rol ADMIN;
+3. si existe, no modifica sus credenciales;
+4. si no existe, crea el administrador inicial usando `<span>ADMIN_USERNAME</span>` y `<span>ADMIN_PASSWORD</span>`.
 
-rápido;
+Para producción se recomienda aplicar migraciones con:
 
-seguro;
+```
+pnpm --filter server exec prisma migrate deploy
+```
 
-mantenible;
+---
 
-claro;
+## Ejecución
 
-escalable;
+### Frontend y backend juntos
 
-sin funcionalidades innecesarias.
+Desde la raíz:
 
-SIGEP no pretende hacer muchas cosas. Pretende hacer correctamente las cosas que el área realmente necesita.
+```
+pnpm dev
+```
+
+### Frontend por separado
+
+```
+pnpm --filter frontend dev
+```
+
+Disponible normalmente en:
+
+```
+http://localhost:5173
+```
+
+### Backend por separado
+
+```
+pnpm --filter server dev
+```
+
+Disponible en:
+
+```
+http://localhost:4000
+```
+
+Health check:
+
+```
+http://localhost:4000/api/v1/health
+```
+
+---
+
+## Scripts principales
+
+### Raíz
+
+```
+pnpm dev
+pnpm dev:frontend
+pnpm dev:server
+```
+
+### Frontend
+
+```
+pnpm --filter frontend dev
+pnpm --filter frontend build
+```
+
+### Backend
+
+```
+pnpm --filter server dev
+pnpm --filter server start
+```
+
+### Prisma
+
+```
+pnpm --filter server exec prisma format
+pnpm --filter server exec prisma validate
+pnpm --filter server exec prisma generate
+pnpm --filter server exec prisma migrate dev
+pnpm --filter server exec prisma migrate deploy
+pnpm --filter server exec prisma db seed
+```
+
+---
+
+## API
+
+Base URL local:
+
+```
+http://localhost:4000/api/v1
+```
+
+### Rutas públicas
+
+#### Health
+
+```
+GET /api/v1/health
+```
+
+#### Login
+
+```
+POST /api/v1/auth/login
+```
+
+Body:
+
+```
+{
+  "username": "admin",
+  "password": "contraseña"
+}
+```
+
+Respuesta exitosa:
+
+```
+{
+  "success": true,
+  "data": {
+    "token": "JWT",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "role": "ADMIN"
+    }
+  }
+}
+```
+
+---
+
+## Rutas protegidas
+
+Todas las rutas privadas requieren:
+
+```
+Authorization: Bearer TOKEN
+```
+
+### Cuenta
+
+```
+GET /api/v1/auth/me
+PUT /api/v1/auth/me
+```
+
+### Personal
+
+```
+GET /api/v1/personnel
+POST /api/v1/personnel
+PUT /api/v1/personnel/:id
+```
+
+### Tipos de equipamiento
+
+```
+GET /api/v1/equipment-types
+POST /api/v1/equipment-types
+```
+
+### Equipamiento
+
+```
+GET /api/v1/equipment
+POST /api/v1/equipment
+PUT /api/v1/equipment/:id
+```
+
+### Asignaciones
+
+```
+GET  /api/v1/assignments
+POST /api/v1/assignments
+GET  /api/v1/assignments/personnel/:personnelId
+POST /api/v1/assignments/:assignmentId/details/:detailId/return
+POST /api/v1/assignments/:assignmentId/pistol-provision/return
+```
+
+---
+
+## Ejemplo de autenticación por terminal
+
+Login:
+
+```
+curl -X POST http://localhost:4000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "TU_CONTRASEÑA"
+  }'
+```
+
+Consultar una ruta protegida:
+
+```
+curl http://localhost:4000/api/v1/personnel \
+  -H "Authorization: Bearer TU_TOKEN"
+```
+
+Sin token, el backend responde:
+
+```
+{
+  "success": false,
+  "error": {
+    "message": "Autenticación requerida"
+  }
+}
+```
+
+---
+
+## Prisma
+
+El cliente Prisma se genera en:
+
+```
+server/src/generated/prisma
+```
+
+La conexión se centraliza en:
+
+```
+server/src/lib/prisma.js
+```
+
+SIGEP utiliza PostgreSQL mediante `<span>@prisma/adapter-pg</span>`.
+
+---
+
+## Modelos principales
+
+### User
+
+Representa los usuarios autorizados del sistema.
+
+Campos principales:
+
+* username
+* passwordHash
+* role
+* isActive
+
+Rol actual:
+
+```
+ADMIN
+```
+
+### Personnel
+
+Representa al personal administrado dentro de SIGEP.
+
+### EquipmentType
+
+Define el tipo de equipamiento, categoría, modo de control y modalidad logística predeterminada.
+
+### Equipment
+
+Representa una unidad individual o un registro de stock por cantidad.
+
+### Assignment
+
+Representa una asignación logística de equipamiento a una persona.
+
+Modalidades:
+
+```
+PERMANENT
+TEMPORARY
+```
+
+### AssignmentDetail
+
+Relaciona una asignación con uno o más registros de equipamiento y controla las cantidades asignadas y devueltas.
+
+---
+
+## Reglas de negocio importantes
+
+### Identificación individual
+
+Para equipamiento individual, el número de serie se considera una identificación única y no debe repetirse.
+
+### Pistola
+
+La pistola:
+
+* se controla individualmente;
+* se asigna de forma permanente;
+* genera una provisión automática con 3 cargadores y 50 municiones 9 mm.
+
+### Chaleco Balístico
+
+El chaleco:
+
+* se controla individualmente;
+* se asigna de forma temporaria;
+* permanece identificado con el personal al que corresponde.
+
+### Escopeta
+
+Se administra como stock general y no se asigna directamente al personal.
+
+### HT
+
+Se administra por cantidad como stock general y no se asigna directamente al personal.
+
+### Municiones
+
+Se administran por cantidad.
+
+La munición 9 mm utilizada en la provisión de pistola se descuenta automáticamente del stock.
+
+### Cargadores
+
+Se administran por cantidad.
+
+La provisión de pistola utiliza exactamente 3 cargadores.
+
+---
+
+## Respuesta estándar de la API
+
+Respuesta correcta:
+
+```
+{
+  "success": true,
+  "data": {}
+}
+```
+
+Respuesta con error:
+
+```
+{
+  "success": false,
+  "error": {
+    "message": "Descripción del error",
+    "details": []
+  }
+}
+```
+
+---
+
+## Seguridad
+
+Buenas prácticas aplicadas:
+
+* contraseñas hasheadas con bcrypt;
+* JWT para autenticación;
+* rutas privadas protegidas;
+* validación de contraseña actual para modificar credenciales;
+* Helmet;
+* variables sensibles en `<span>.env</span>`;
+* separación entre frontend y backend;
+* Prisma para acceso a datos;
+* restricciones de unicidad en base de datos.
+
+Nunca se deben versionar:
+
+* contraseñas;
+* JWT_SECRET;
+* DATABASE_URL con credenciales reales;
+* archivos `<span>.env</span>`.
+
+---
+
+## Build de producción
+
+Frontend:
+
+```
+pnpm --filter frontend build
+```
+
+Salida:
+
+```
+frontend/dist
+```
+
+Actualmente Vite puede mostrar una advertencia por chunks superiores a 500 kB debido principalmente a las dependencias utilizadas para generación de PDF. Es una advertencia de optimización y no impide generar el build.
+
+---
+
+## Estado actual
+
+SIGEP cuenta actualmente con:
+
+* dashboard;
+* gestión de personal;
+* gestión de equipamiento;
+* catálogo de tipos de equipamiento;
+* asignaciones permanentes y temporarias;
+* provisión automática de pistola;
+* devolución conjunta de provisión;
+* control de stock;
+* historial de movimientos;
+* búsqueda y filtros;
+* impresión;
+* exportación PDF;
+* login de administrador;
+* JWT;
+* rutas protegidas;
+* cierre de sesión;
+* gestión de nombre de usuario;
+* cambio de contraseña;
+* migraciones Prisma;
+* seed inicial seguro;
+* repositorio Git versionado.
+
+---
+
+## Mejoras futuras
+
+Posibles próximas etapas:
+
+* auditoría completa de acciones por usuario;
+* más roles y permisos, por ejemplo OPERADOR y LECTOR;
+* administración de usuarios desde la interfaz;
+* recuperación o restablecimiento de contraseña;
+* exportación adicional a CSV/Excel;
+* reportes de stock;
+* alertas de stock mínimo;
+* reportes por personal;
+* reportes por tipo de equipamiento;
+* optimización del bundle del frontend mediante code splitting;
+* despliegue productivo de frontend, backend y PostgreSQL.
+
+---
+
+## Git
+
+Flujo habitual:
+
+```
+git status
+git add .
+git commit -m "Descripción del cambio"
+git push
+```
+
+Repositorio remoto:
+
+```
+origin  https://github.com/Rolando-Du/sigep.git
+```
+
+Rama principal actual:
+
+```
+master
+```
+
+---
+
+## Autor
+
+Rolando Duarte - Proyecto SIGEP.
+
+**Sistema Integral de Gestión de Equipamiento y Personal**
+
+Desarrollado como aplicación web de gestión logística con React, Node.js, Express, PostgreSQL y Prisma.
